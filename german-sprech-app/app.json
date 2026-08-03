@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Deutsch Sprechen",
+    "slug": "deutsch-sprechen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#101826"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.erdalcaglar.deutschsprechen"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#101826"
+      },
+      "package": "com.erdalcaglar.deutschsprechen"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": []
+  }
+}
