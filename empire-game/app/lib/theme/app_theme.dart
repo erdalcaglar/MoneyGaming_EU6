@@ -18,7 +18,6 @@ class AppTheme {
         error: AppColors.danger,
       ),
       textTheme: base.textTheme
-          .apply(bodyColor: AppColors.textPrimary, displayColor: AppColors.textPrimary)
           .copyWith(
             headlineMedium: const TextStyle(
               fontWeight: FontWeight.w800,
@@ -35,7 +34,8 @@ class AppTheme {
               color: AppColors.textPrimary,
             ),
             bodyMedium: const TextStyle(color: AppColors.textSecondary, height: 1.35),
-          ),
+          )
+          .apply(bodyColor: AppColors.textPrimary, displayColor: AppColors.textPrimary),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,

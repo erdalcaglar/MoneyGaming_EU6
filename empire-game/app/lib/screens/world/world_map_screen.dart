@@ -18,16 +18,12 @@ class _WorldMapScreenState extends ConsumerState<WorldMapScreen> {
   List<WorldMapEntry>? _entries;
   String? _error;
   bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
+  String? _loadedForVillageId;
 
   Future<void> _load() async {
     final village = ref.read(villageControllerProvider).selected;
     if (village == null) return;
+    _loadedForVillageId = village.id;
     setState(() {
       _loading = true;
       _error = null;
@@ -47,6 +43,9 @@ class _WorldMapScreenState extends ConsumerState<WorldMapScreen> {
   @override
   Widget build(BuildContext context) {
     final village = ref.watch(villageControllerProvider).selected;
+    if (village != null && !_loading && _loadedForVillageId != village.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dünya Haritası'),

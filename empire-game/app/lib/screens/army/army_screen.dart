@@ -39,7 +39,7 @@ class ArmyScreen extends ConsumerWidget {
             const SizedBox(height: 24),
             Text('Eğitim', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
-            ...catalog.units.map((def) => _TrainCard(village: village, def: def)),
+            ...catalog.units.map((def) => _TrainCard(village: village, def: def, catalog: catalog)),
           ],
         ),
       ),
@@ -75,9 +75,10 @@ class _UnitRow extends StatelessWidget {
 }
 
 class _TrainCard extends ConsumerStatefulWidget {
-  const _TrainCard({required this.village, required this.def});
+  const _TrainCard({required this.village, required this.def, required this.catalog});
   final Village village;
   final UnitCatalog def;
+  final Catalog catalog;
 
   @override
   ConsumerState<_TrainCard> createState() => _TrainCardState();
@@ -109,8 +110,9 @@ class _TrainCardState extends ConsumerState<_TrainCard> {
     final freePopulation = village.population.cap - village.population.used;
     final populationOk = _count * def.populationCost <= freePopulation;
 
+    final trainedAtName = widget.catalog.building(def.trainedAt)?.name ?? def.trainedAt;
     final disabledReason = !hasBuilding
-        ? '${def.trainedAt} seviye ${def.requiresBuildingLevel} gerekli'
+        ? '$trainedAtName seviye ${def.requiresBuildingLevel} gerekli'
         : alreadyTraining
             ? 'Zaten eğitiliyor'
             : !populationOk
