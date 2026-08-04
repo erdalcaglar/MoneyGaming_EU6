@@ -99,6 +99,16 @@ export const grammarNotes: Record<string, GrammarNote> = {
     origin: 'Predicative (yüklem konumundaki) sıfatların çekimsiz kalması, Almancanın sıfat sistemi içinde İngilizceye en çok benzeyen kuraldır.',
     example: '"Das Auto ist schön." (Araba güzel.) — "schön" hiç değişmedi.',
   },
+  'copula-extra-subject': {
+    title: 'Bir cümlede tek özne olur',
+    rule:
+      '"sein/werden/bleiben" gibi bir bağlantı (kopula) fiili kullanırken cümlede YALNIZCA bir özne olabilir. Bir zamir (ich, du...) seçtiysen, ayrıca tam bir "artikel + isim" öbeğini de özneymiş gibi eklersen cümle çelişkiye düşer.',
+    why:
+      '"sein" bir eşitlik/nitelik bildirir: "A, B\'dir" kalıbında A tek bir şey olmalı. "Ich bin der Weg" gibi bir kalıp gramer olarak kurulabilir olsa da ("Ben yolum" gibi tuhaf bir anlam çıkar) senin seçtiğin kelimeler ("ich" VE "der Weg" VE "lang") üçü birden tek bir tutarlı cümle kurmuyor — motor bunu otomatik "düzeltemez" çünkü hangi kelimeyi çıkarman gerektiğine SEN karar vermelisin.',
+    origin:
+      'Bu, Almancaya özgü değil — her dilde yüklem tek bir özneye bağlanır. Buradaki tuzak, uygulamada özne için hem zamir hem tam isim öbeği seçilebilmesi; gerçek konuşmada bunlardan sadece biri kullanılır.',
+    example: '"Ich bin müde." (Ben yorgunum.) YA DA "Der Weg ist lang." (Yol uzun.) — ama ikisini karıştırma.',
+  },
   'missing-subject': {
     title: 'Özne eksik',
     rule: 'Almanca cümlelerde (emir kipi hariç) özne neredeyse hiç düşürülmez — Türkçenin aksine, fiil çekimi özneyi belirtmeye yetmez.',

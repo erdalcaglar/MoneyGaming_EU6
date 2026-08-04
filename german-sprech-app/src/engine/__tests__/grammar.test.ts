@@ -1,5 +1,5 @@
 import { checkSentence } from '../grammar';
-import { makeUid, PronounToken, VerbToken, ArticleToken, NounToken, QuestionToken, ConnectorToken } from '../tokens';
+import { makeUid, PronounToken, VerbToken, ArticleToken, NounToken, AdjectiveToken, QuestionToken, ConnectorToken } from '../tokens';
 import { definiteArticles } from '../../data/articles';
 
 function pronoun(text: string, person: PronounToken['person']): PronounToken {
@@ -15,6 +15,9 @@ function article(defId: string): ArticleToken {
 function noun(nounId: string): NounToken {
   return { uid: makeUid('n'), kind: 'noun', nounId };
 }
+function adjective(adjectiveId: string): AdjectiveToken {
+  return { uid: makeUid('aj'), kind: 'adjective', adjectiveId };
+}
 function question(word: string): QuestionToken {
   return { uid: makeUid('q'), kind: 'question', word, tr: '' };
 }
@@ -28,6 +31,7 @@ describe('checkSentence — the flagship example: "Ich habe gekommen" is wrong',
     const result = checkSentence(tokens);
     expect(result.correct).toBe(false);
     expect(result.issues.some((i) => i.ruleId === 'perfekt-aux-choice')).toBe(true);
+    expect(result.correctable).toBe(true);
     expect(result.correctedSentence).toBe('Ich bin gekommen.');
   });
 
@@ -65,6 +69,7 @@ describe('checkSentence — simple present', () => {
     const result = checkSentence(tokens);
     expect(result.correct).toBe(false);
     expect(result.issues.some((i) => i.ruleId === 'subject-verb-agreement')).toBe(true);
+    expect(result.correctable).toBe(true);
     expect(result.correctedSentence).toBe('Du kommst.');
   });
 
@@ -82,6 +87,7 @@ describe('checkSentence — cases (Akkusativ/Dativ)', () => {
     const result = checkSentence(tokens);
     expect(result.correct).toBe(false);
     expect(result.issues.some((i) => i.ruleId === 'case-akkusativ')).toBe(true);
+    expect(result.correctable).toBe(true);
     expect(result.correctedSentence).toBe('Ich sehe den Mann.');
   });
 
@@ -141,6 +147,49 @@ describe('checkSentence — weil/dass (verb-final)', () => {
     const result = checkSentence(tokens);
     expect(result.correct).toBe(true);
     expect(result.yourSentence).toBe('Weil ich gekommen bin.');
+  });
+});
+
+describe('checkSentence — never presents a fake "correction" that is still wrong (regression)', () => {
+  it('reports the "ich bin der Weg lang" case as uncorrectable instead of echoing the same wrong sentence back', () => {
+    // Reported bug: user built ich + bin + der + Weg + lang ("Ich bin der Weg lang.").
+    // The app said it was wrong but showed the identical text as "Doğrusu".
+    const tokens = [pronoun('ich', 'ich'), verb('sein', 'finite', 'ich'), article('def_m_nom'), noun('weg'), adjective('lang')];
+    const result = checkSentence(tokens);
+
+    expect(result.correct).toBe(false);
+    expect(result.yourSentence).toBe('Ich bin der Weg lang.');
+    // The two competing "subjects" (ich / der Weg) must be flagged explicitly...
+    expect(result.issues.some((i) => i.ruleId === 'copula-extra-subject')).toBe(true);
+    // ...and since that can't be fixed by reordering, the app must NOT claim a fix.
+    expect(result.correctable).toBe(false);
+    expect(result.correctedSentence).not.toBe(result.yourSentence);
+    expect(result.correctedSentence).toBe('');
+  });
+
+  it('accepts "der Weg ist lang" (Weg as the real subject, no pronoun) is out of scope but does not crash', () => {
+    // MVP requires a pronoun subject; a noun-only subject should be reported
+    // as missing-subject rather than silently mishandled.
+    const tokens = [article('def_m_nom'), noun('weg'), verb('sein', 'finite', 'er_sie_es'), adjective('lang')];
+    const result = checkSentence(tokens);
+    expect(result.correct).toBe(false);
+    expect(result.issues.some((i) => i.ruleId === 'missing-subject')).toBe(true);
+    expect(result.correctable).toBe(false);
+  });
+
+  it('never sets correctable=true with an empty correctedSentence, and never correctable=false with a non-empty one', () => {
+    const scenarios = [
+      [pronoun('ich', 'ich'), verb('haben', 'finite', 'ich'), verb('kommen', 'partizip')],
+      [pronoun('du', 'du'), verb('kommen', 'finite', 'ich')],
+      [pronoun('ich', 'ich'), verb('sehen', 'finite', 'ich'), article('def_m_nom'), noun('mann')],
+      [pronoun('ich', 'ich'), verb('sein', 'finite', 'ich'), article('def_m_nom'), noun('weg'), adjective('lang')],
+      [article('def_m_nom'), noun('weg'), verb('sein', 'finite', 'er_sie_es'), adjective('lang')],
+    ];
+    for (const tokens of scenarios) {
+      const result = checkSentence(tokens);
+      if (result.correct) continue;
+      expect(result.correctable).toBe(result.correctedSentence.length > 0);
+    }
   });
 });
 

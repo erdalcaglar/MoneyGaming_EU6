@@ -16,6 +16,9 @@ export interface Issue {
 
 export interface CheckResult {
   correct: boolean;
+  /** false = the engine could not produce (or verify) a valid correction;
+   * correctedSentence should then NOT be shown as "the right answer". */
+  correctable: boolean;
   issues: Issue[];
   yourSentence: string;
   correctedSentence: string;
@@ -167,10 +170,32 @@ function checkCases(tokens: SentenceToken[], governingVerb: VerbEntry | undefine
 }
 
 // ---------------------------------------------------------------------------
-// Adjective placement (predicative OK; attributive gets an info note only)
+// Copula verbs (sein/werden/bleiben) can only have ONE subject-like element.
+// If the student also builds a full Artikel+Nomen(Nominativ) phrase next to
+// a pronoun subject, the sentence has two competing subjects and cannot be
+// fixed by reordering — flag it explicitly instead of silently guessing.
 // ---------------------------------------------------------------------------
 
 const COPULA_INFINITIVES = ['sein', 'werden', 'bleiben'];
+
+function checkCopulaExtraSubject(tokens: SentenceToken[], governingVerb: VerbEntry | undefined, subject: PronounToken | null, issues: Issue[]): boolean {
+  if (!governingVerb || !COPULA_INFINITIVES.includes(governingVerb.infinitive) || !subject) return false;
+  let found = false;
+  for (let i = 0; i < tokens.length - 1; i += 1) {
+    const a = tokens[i];
+    const b = tokens[i + 1];
+    if (a.kind === 'article' && b.kind === 'noun' && (a as ArticleToken).case === 'nominativ') {
+      const noun = nounById((b as NounToken).nounId);
+      issues.push({
+        ruleId: 'copula-extra-subject',
+        severity: 'error',
+        message: `"${governingVerb.infinitive}" gibi bir fiilde aynı anda hem "${subject.text}" hem "${(a as ArticleToken).surface} ${noun.noun}" özne gibi davranamaz — bir cümlede yalnızca bir özne olur. Ya "${subject.text}" ile devam et (ör. "${subject.text} ${conjugatePresent(governingVerb, subject.person)} müde.") ya da "${(a as ArticleToken).surface} ${noun.noun}"yı özne yap (ör. "${a.surface} ${noun.noun} ${conjugatePresent(governingVerb, 'er_sie_es')} lang.").`,
+      });
+      found = true;
+    }
+  }
+  return found;
+}
 
 function checkAdjectives(tokens: SentenceToken[], issues: Issue[]): void {
   tokens.forEach((t, i) => {
@@ -349,13 +374,16 @@ function checkSubordinateOrder(tokens: SentenceToken[], finiteVerbToken: VerbTok
 // Main entry point
 // ---------------------------------------------------------------------------
 
-export function checkSentence(tokens: SentenceToken[]): CheckResult {
-  const issues: Issue[] = [];
-  const yourSentence = renderSentence(tokens);
+interface RunChecksResult {
+  issues: Issue[];
+  subject: PronounToken | null;
+  pronounCount: number;
+  shape: Shape;
+}
 
-  if (tokens.length === 0) {
-    return { correct: false, issues: [{ ruleId: 'empty', severity: 'error', message: 'Önce birkaç kelime seç.' }], yourSentence: '', correctedSentence: '' };
-  }
+/** Runs every rule against a token list and reports issues — no correction attempted here. */
+function runChecks(tokens: SentenceToken[]): RunChecksResult {
+  const issues: Issue[] = [];
 
   const pronounTokens = tokens.filter((t): t is PronounToken => t.kind === 'pronoun');
   if (pronounTokens.length === 0) {
@@ -375,9 +403,9 @@ export function checkSentence(tokens: SentenceToken[]): CheckResult {
       severity: 'error',
       message: 'Cümlede tam bir fiil yapısı yok. Ya tek bir çekimli fiil, ya "haben/sein" + Partizip II, ya da bir modal fiil + mastar kullanmalısın.',
     });
-  } else if (tokens[0].kind === 'question') {
+  } else if (tokens[0]?.kind === 'question') {
     subject = checkQuestionOrder(tokens, shape.finiteVerbToken!, shape.secondaryVerbToken, issues);
-  } else if (tokens[0].kind === 'connector' && ['weil', 'dass'].includes((tokens[0] as ConnectorToken).word)) {
+  } else if (tokens[0]?.kind === 'connector' && ['weil', 'dass'].includes((tokens[0] as ConnectorToken).word)) {
     subject = checkSubordinateOrder(tokens, shape.finiteVerbToken!, shape.secondaryVerbToken, issues);
   } else {
     subject = checkMainClauseOrder(tokens, shape.finiteVerbToken!, shape.secondaryVerbToken, issues);
@@ -392,12 +420,53 @@ export function checkSentence(tokens: SentenceToken[]): CheckResult {
 
   checkCases(tokens, shape.governingVerb, issues);
   checkAdjectives(tokens, issues);
+  checkCopulaExtraSubject(tokens, shape.governingVerb, subject, issues);
 
+  return { issues, subject, pronounCount: pronounTokens.length, shape };
+}
+
+export function checkSentence(tokens: SentenceToken[]): CheckResult {
+  const yourSentence = renderSentence(tokens);
+
+  if (tokens.length === 0) {
+    return {
+      correct: false,
+      correctable: false,
+      issues: [{ ruleId: 'empty', severity: 'error', message: 'Önce birkaç kelime seç.' }],
+      yourSentence: '',
+      correctedSentence: '',
+    };
+  }
+
+  const { issues, subject, pronounCount, shape } = runChecks(tokens);
   const hardErrors = issues.filter((i) => i.severity === 'error');
-  const correctedSentence = hardErrors.length === 0 ? yourSentence : buildCorrectedSentence(tokens, shape, subject);
+
+  if (hardErrors.length === 0) {
+    return { correct: true, correctable: true, issues, yourSentence, correctedSentence: yourSentence };
+  }
+
+  // Only attempt an automatic fix when the structure is simple enough to
+  // reorder/repair safely: exactly one subject pronoun and a recognizable
+  // verb shape. Anything else (e.g. two competing subjects, a stranded
+  // adjective with no valid slot) cannot be "fixed" by reordering the same
+  // tokens, so we say so honestly instead of faking a correction.
+  let correctedSentence = '';
+  let correctable = false;
+  if (pronounCount === 1 && subject && shape.kind !== 'incomplete') {
+    const attempt = attemptCorrection(tokens, shape, subject);
+    if (attempt) {
+      const verify = runChecks(attempt);
+      const verifyHardErrors = verify.issues.filter((i) => i.severity === 'error');
+      if (verifyHardErrors.length === 0) {
+        correctable = true;
+        correctedSentence = renderSentence(attempt);
+      }
+    }
+  }
 
   return {
-    correct: hardErrors.length === 0,
+    correct: false,
+    correctable,
     issues,
     yourSentence,
     correctedSentence,
@@ -405,11 +474,13 @@ export function checkSentence(tokens: SentenceToken[]): CheckResult {
 }
 
 // ---------------------------------------------------------------------------
-// Best-effort corrected sentence builder (for the "doğrusu" feedback)
+// Best-effort corrected token order (for the "doğrusu" feedback). Returns
+// null when it cannot even attempt a reorder; the CALLER still re-verifies
+// the result with runChecks() before trusting it (see checkSentence).
 // ---------------------------------------------------------------------------
 
-function buildCorrectedSentence(tokens: SentenceToken[], shape: Shape, subject: PronounToken | null): string {
-  if (!subject || shape.kind === 'incomplete') return '(düzeltme için önce özne ve fiil yapısını tamamla)';
+function attemptCorrection(tokens: SentenceToken[], shape: Shape, subject: PronounToken | null): SentenceToken[] | null {
+  if (!subject || shape.kind === 'incomplete' || !shape.finiteVerbToken) return null;
 
   const fixed: SentenceToken[] = tokens.map((t) => ({ ...t }));
   const byUid = (uid: string) => fixed.find((t) => (t as { uid: string }).uid === uid);
@@ -465,5 +536,5 @@ function buildCorrectedSentence(tokens: SentenceToken[], shape: Shape, subject: 
     ordered = [subjectTok, finiteTok, ...middle, ...(secondaryTok ? [secondaryTok] : [])];
   }
 
-  return renderSentence(ordered);
+  return ordered;
 }

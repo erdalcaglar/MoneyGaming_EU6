@@ -60,7 +60,7 @@ export const FeedbackModal: React.FC<Props> = ({ result, onClose }) => {
             </View>
           </View>
 
-          {!result.correct ? (
+          {!result.correct && result.correctable ? (
             <View style={styles.sentenceBox}>
               <Text style={styles.sentenceLabel}>Doğrusu</Text>
               <View style={styles.sentenceRow}>
@@ -69,6 +69,15 @@ export const FeedbackModal: React.FC<Props> = ({ result, onClose }) => {
                   <Text style={styles.speakIcon}>🔊</Text>
                 </Pressable>
               </View>
+            </View>
+          ) : null}
+
+          {!result.correct && !result.correctable ? (
+            <View style={styles.sentenceBox}>
+              <Text style={styles.notCorrectableText}>
+                Bu kelime kombinasyonu için tek bir otomatik düzeltme üretilemiyor — seçtiğin kelimeler birbiriyle çelişiyor olabilir. Aşağıdaki açıklamalara bakarak
+                kelimelerini gözden geçir.
+              </Text>
             </View>
           ) : null}
 
@@ -95,6 +104,7 @@ const styles = StyleSheet.create({
   sentenceLabel: { color: colors.textMuted, fontSize: 12, marginBottom: 2 },
   sentenceRow: { flexDirection: 'row', alignItems: 'center' },
   sentenceText: { color: colors.text, fontSize: 17, fontWeight: '600', flexShrink: 1 },
+  notCorrectableText: { color: colors.info, fontSize: 13, fontStyle: 'italic', lineHeight: 19 },
   speakIcon: { fontSize: 20, marginLeft: spacing(1) },
   issuesList: { marginTop: spacing(1) },
   issueBox: { backgroundColor: colors.cardAlt, borderRadius: 12, padding: spacing(1.5), marginBottom: spacing(1) },
