@@ -6,6 +6,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { BuilderScreen } from '../screens/BuilderScreen';
 import { WordListScreen } from '../screens/WordListScreen';
 import { ExpressionsScreen } from '../screens/ExpressionsScreen';
+import { AddWordScreen } from '../screens/AddWordScreen';
 import { colors } from '../theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -30,6 +31,7 @@ export const RootNavigator: React.FC = () => {
         <Stack.Screen name="Builder" component={BuilderScreen} options={{ title: 'Cümle Kur' }} />
         <Stack.Screen name="WordList" component={WordListScreen} options={{ title: 'Kelime Bankası' }} />
         <Stack.Screen name="Expressions" component={ExpressionsScreen} options={{ title: 'Günlük İfadeler' }} />
+        <Stack.Screen name="AddWord" component={AddWordScreen} options={{ title: 'Kelime Ekle', presentation: 'modal' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

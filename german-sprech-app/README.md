@@ -16,6 +16,7 @@ Kaynak: Instagram'daki "Sizi Konuşturacak 100 Fiil / 200 İsim / 100 Sıfat / 1
 3. **Yanlışsa doğrusunu gösterir**, her hata için **"Neden?"** butonuyla açılan derinlemesine açıklama sunar: kural + neden böyle + (istenildiği gibi) **dilin kökenine dair açıklama**, hepsi Türkçe.
 4. **Kelime Bankası**: ~90 A1-B1 fiil, ~150 isim (cinsiyetiyle), ~90 sıfat, ~85 C1 seviyesi ileri fiil — hepsi Türkçe anlamıyla, sesli okuma (🔊) ve favorileme ile.
 5. **Günlük İfadeler**: "Echt?", "Ach du meine Güte!", "Na klar!" gibi günlük/naif konuşma kalıpları — her biri neden öyle kullanıldığına dair kısa bir köken/kullanım notuyla.
+6. **Kelime Ekle**: Kendi fiil/isim/sıfatlarını kelime bankasına ekleyebilirsin (Kelime Bankası ekranından ya da Cümle Kur ekranındaki "+ Ekle" ile). Eklediğin kelimeler cihazda saklanır, hem Kelime Bankası'nda hem Cümle Kur oyunlarında hemen kullanılabilir hale gelir ve gramer motoru onları da diğer kelimeler gibi denetler.
 
 ## Neden bu mimari?
 

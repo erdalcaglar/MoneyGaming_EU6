@@ -15,9 +15,10 @@ import { questionWords, connectors } from '../data/questionWords';
 import { SentenceToken, VerbToken, PronounToken, makeUid } from '../engine/tokens';
 import { checkSentence, CheckResult } from '../engine/grammar';
 import { useProgress } from '../context/ProgressContext';
+import { useCustomVocab } from '../context/CustomVocabContext';
 import { colors, spacing } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import type { RootStackParamList, WordCategory } from '../navigation/types';
 
 type Tab = 'ozne' | 'fiil' | 'artikel' | 'isim' | 'sifat' | 'soru' | 'baglac';
 
@@ -56,10 +57,11 @@ const MODE_INFO: Record<string, { title: string; instruction: string; example: s
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Builder'>;
 
-export const BuilderScreen: React.FC<Props> = ({ route }) => {
+export const BuilderScreen: React.FC<Props> = ({ route, navigation }) => {
   const mode = route.params?.mode ?? 'simple';
   const info = MODE_INFO[mode] ?? MODE_INFO.simple;
   const { recordResult } = useProgress();
+  const customVocab = useCustomVocab();
 
   const [tokens, setTokens] = useState<SentenceToken[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('ozne');
@@ -69,7 +71,10 @@ export const BuilderScreen: React.FC<Props> = ({ route }) => {
 
   const subject = tokens.find((t): t is PronounToken => t.kind === 'pronoun') ?? null;
 
-  const verbBank = useMemo(() => (mode === 'free' ? [...verbs, ...verbsC1] : verbs), [mode]);
+  // `customVocab.version` forces recomputation after a custom word is added:
+  // verbs/nouns/adjectives are mutated in place, so their array reference
+  // never changes on its own.
+  const verbBank = useMemo(() => (mode === 'free' ? [...verbs, ...verbsC1] : verbs), [mode, customVocab.version]);
 
   const filteredVerbs = useMemo(
     () => verbBank.filter((v) => v.infinitive.toLowerCase().includes(search.toLowerCase()) || v.tr.toLowerCase().includes(search.toLowerCase())),
@@ -77,11 +82,11 @@ export const BuilderScreen: React.FC<Props> = ({ route }) => {
   );
   const filteredNouns = useMemo(
     () => nouns.filter((n) => n.noun.toLowerCase().includes(search.toLowerCase()) || n.tr.toLowerCase().includes(search.toLowerCase())),
-    [search],
+    [search, customVocab.version],
   );
   const filteredAdjectives = useMemo(
     () => adjectives.filter((a) => a.adjective.toLowerCase().includes(search.toLowerCase()) || a.tr.toLowerCase().includes(search.toLowerCase())),
-    [search],
+    [search, customVocab.version],
   );
 
   function addToken(t: SentenceToken) {
@@ -155,13 +160,18 @@ export const BuilderScreen: React.FC<Props> = ({ route }) => {
         </View>
 
         {(activeTab === 'fiil' || activeTab === 'isim' || activeTab === 'sifat') && (
-          <TextInput
-            placeholder="Ara... (Almanca ya da Türkçe)"
-            placeholderTextColor={colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            style={styles.search}
-          />
+          <View style={styles.searchRow}>
+            <TextInput
+              placeholder="Ara... (Almanca ya da Türkçe)"
+              placeholderTextColor={colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              style={[styles.search, { flex: 1, marginBottom: 0 }]}
+            />
+            <Pressable style={styles.addWordBtn} onPress={() => navigation.navigate('AddWord', { initialCategory: activeTab as WordCategory })}>
+              <Text style={styles.addWordBtnText}>+ Ekle</Text>
+            </Pressable>
+          </View>
         )}
 
         <View style={styles.bankWrap}>
@@ -272,5 +282,8 @@ const styles = StyleSheet.create({
   tabText: { color: colors.textMuted, fontWeight: '600' },
   tabTextActive: { color: '#fff' },
   search: { backgroundColor: colors.card, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: spacing(1.5) },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) as unknown as number, marginBottom: spacing(1.5) },
+  addWordBtn: { backgroundColor: colors.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  addWordBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   bankWrap: { flexDirection: 'row', flexWrap: 'wrap' },
 });
