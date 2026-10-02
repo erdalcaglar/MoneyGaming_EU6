@@ -1,0 +1,98 @@
+// Empire Age - veritabanı şeması.
+// Geliştirmede SQLite (sıfır kurulum), üretimde DATABASE_URL'i
+// bir Postgres bağlantı dizesiyle değiştirip provider = "postgresql"
+// yaparak geçilebilir; modeller motor-agnostik yazıldı.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  level        Int      @default(1)
+  xp           Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  villages   Village[]
+  battleLogs BattleLog[]
+}
+
+model Village {
+  id        String   @id @default(cuid())
+  name      String
+  owner     Player?  @relation(fields: [ownerId], references: [id])
+  ownerId   String?
+  isCapital Boolean  @default(false)
+
+  x Int
+  y Int
+
+  gold     Float    @default(0)
+  food     Float    @default(0)
+  wood     Float    @default(0)
+  lastTick DateTime @default(now())
+
+  isNpc  Boolean @default(false)
+  npcTier Int?
+
+  createdAt DateTime @default(now())
+
+  buildings Building[]
+  units     Unit[]
+
+  @@unique([x, y])
+  @@index([ownerId])
+}
+
+model Building {
+  id              String    @id @default(cuid())
+  village         Village   @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  villageId       String
+  type            String
+  level           Int       @default(1)
+  workersAssigned Int       @default(0)
+  upgradeEndsAt   DateTime?
+  slotX           Int
+  slotY           Int
+
+  @@unique([villageId, slotX, slotY])
+  @@index([villageId])
+}
+
+model Unit {
+  id             String    @id @default(cuid())
+  village        Village   @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  villageId      String
+  type           String
+  count          Int       @default(0)
+  trainingCount  Int       @default(0)
+  trainingEndsAt DateTime?
+
+  @@unique([villageId, type])
+  @@index([villageId])
+}
+
+model BattleLog {
+  id                String   @id @default(cuid())
+  attacker          Player   @relation(fields: [attackerId], references: [id])
+  attackerId        String
+  attackerVillageId String
+  defenderVillageId String
+  result            String
+  lootGold          Float    @default(0)
+  lootFood          Float    @default(0)
+  lootWood          Float    @default(0)
+  xpGained          Int      @default(0)
+  conquered         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@index([attackerId])
+}
