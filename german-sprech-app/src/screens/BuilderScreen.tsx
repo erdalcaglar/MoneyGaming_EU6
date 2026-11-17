@@ -1,289 +1,229 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { WordChip } from '../components/WordChip';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { BuilderMode, RootStackParamList, WordCategory } from '../navigation/types';
+import { ArticleTable } from '../components/ArticleTable';
+import { FeedbackSheet } from '../components/FeedbackSheet';
 import { SentenceStrip } from '../components/SentenceStrip';
-import { FeedbackModal } from '../components/FeedbackModal';
 import { VerbTokenEditor } from '../components/VerbTokenEditor';
+import { WordChip } from '../components/WordChip';
+import { Button, IconButton, Page, Pills, SearchField, TopBar } from '../components/ui';
+import { allVerbs } from '../data';
 import { verbs } from '../data/verbs';
 import { verbsC1 } from '../data/verbsC1';
 import { nouns } from '../data/nouns';
 import { adjectives } from '../data/adjectives';
 import { pronouns } from '../data/pronouns';
-import { definiteArticles, indefiniteArticles, articleDefToToken } from '../data/articles';
-import { questionWords, connectors } from '../data/questionWords';
-import { SentenceToken, VerbToken, PronounToken, makeUid } from '../engine/tokens';
+import { articleDefToToken } from '../data/articles';
+import { connectors, questionWords, timePlaceWords } from '../data/questionWords';
+import { VerbEntry } from '../data/types';
 import { checkSentence, CheckResult } from '../engine/grammar';
-import { useProgress } from '../context/ProgressContext';
+import { makeUid, PronounToken, SentenceToken, VerbToken } from '../engine/tokens';
 import { useCustomVocab } from '../context/CustomVocabContext';
-import { colors, spacing } from '../theme';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList, WordCategory } from '../navigation/types';
+import { useProgress } from '../context/ProgressContext';
+import { useSettings, useTheme } from '../context/SettingsContext';
+import { fonts, space } from '../theme';
 
-type Tab = 'ozne' | 'fiil' | 'artikel' | 'isim' | 'sifat' | 'soru' | 'baglac';
+type Tab = 'soru' | 'baglac' | 'ozne' | 'fiil' | 'artikel' | 'isim' | 'sifat' | 'ek';
 
-const MODE_INFO: Record<string, { title: string; instruction: string; example: string; showQuestion?: boolean; showConnector?: boolean }> = {
-  simple: { title: 'Basit Cümleler', instruction: 'Özne + fiil (+ nesne) seçerek bir cümle kur.', example: 'Örn: Ich trinke Kaffee.' },
-  question: {
-    title: 'Soru Sor (W-Fragen)',
-    instruction: 'Önce bir soru kelimesi, sonra fiil, sonra özne seç.',
-    example: 'Örn: Wo wohnst du?',
-    showQuestion: true,
-  },
-  perfekt: {
-    title: 'Geçmiş Zaman (Perfekt)',
-    instruction: 'Özne + haben/sein + ... + fiilin Partizip II hâli. Fiil çipine dokunup "Partizip II" seç!',
-    example: 'Örn: Ich bin gekommen. / Ich habe gegessen.',
-  },
-  modal: {
-    title: 'Modal Fiiller',
-    instruction: 'Özne + modal fiil (können, müssen...) + ... + ana fiilin mastar hâli. Fiil çipine dokunup "Mastar" seç!',
-    example: 'Örn: Ich kann Deutsch sprechen.',
-  },
-  subordinate: {
-    title: 'weil / dass Cümleleri',
-    instruction: 'Önce bağlaç, sonra özne, en sonda fiil.',
-    example: 'Örn: ..., weil ich müde bin.',
-    showConnector: true,
-  },
-  free: {
-    title: 'Serbest Pratik',
-    instruction: 'İstediğin kelimeleri seç, istediğin cümleyi kur — motor otomatik olarak yapıyı anlar.',
-    example: 'Her şeyi dene!',
-    showQuestion: true,
-    showConnector: true,
-  },
+const TAB_LABEL: Record<Tab, string> = { soru: 'Soru', baglac: 'Bağlaç', ozne: 'Özne', fiil: 'Fiil', artikel: 'Artikel', isim: 'İsim', sifat: 'Sıfat', ek: 'Zaman, yer…' };
+const BASE_TABS: Tab[] = ['ozne', 'fiil', 'artikel', 'isim', 'sifat', 'ek'];
+
+const MODES: Record<BuilderMode, { title: string; pattern: string; example: string; tabs: Tab[]; pinnedVerbs: string[] }> = {
+  simple: { title: 'Basit cümleler', pattern: 'Özne + fiil + nesne', example: 'Ich trinke Wasser.', tabs: BASE_TABS, pinnedVerbs: [] },
+  question: { title: 'Soru sor', pattern: 'Soru kelimesi + fiil + özne — ya da fiille başla', example: 'Wo arbeitest du? · Kommst du?', tabs: ['soru', ...BASE_TABS], pinnedVerbs: [] },
+  perfekt: { title: 'Geçmiş zaman', pattern: 'Özne + haben/sein + … + Partizip II', example: 'Ich bin gekommen. · Ich habe gegessen.', tabs: BASE_TABS, pinnedVerbs: ['haben', 'sein'] },
+  modal: { title: 'Modal fiiller', pattern: 'Özne + modal fiil + … + mastar', example: 'Ich kann tanzen.', tabs: BASE_TABS, pinnedVerbs: ['koennen', 'muessen', 'wollen', 'duerfen', 'sollen', 'moegen'] },
+  subordinate: { title: 'weil ve dass', pattern: 'Bağlaç + özne + … + fiil en sonda', example: '…, weil ich glücklich bin.', tabs: ['baglac', ...BASE_TABS], pinnedVerbs: [] },
+  free: { title: 'Serbest pratik', pattern: 'İstediğin yapıyı kur', example: 'Heute sehe ich den großen Mann.', tabs: ['soru', 'baglac', ...BASE_TABS], pinnedVerbs: [] },
 };
+
+const PAGE_SIZE = 30;
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Builder'>;
 
 export const BuilderScreen: React.FC<Props> = ({ route, navigation }) => {
-  const mode = route.params?.mode ?? 'simple';
-  const info = MODE_INFO[mode] ?? MODE_INFO.simple;
+  const t = useTheme();
+  const { showTranslations } = useSettings();
   const { recordResult } = useProgress();
   const customVocab = useCustomVocab();
+  const mode = route.params?.mode ?? 'simple';
+  const info = MODES[mode] ?? MODES.simple;
 
   const [tokens, setTokens] = useState<SentenceToken[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>('ozne');
+  const [selectedUid, setSelectedUid] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>(info.tabs[0]);
   const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [editingVerb, setEditingVerb] = useState<VerbToken | null>(null);
   const [result, setResult] = useState<CheckResult | null>(null);
 
-  const subject = tokens.find((t): t is PronounToken => t.kind === 'pronoun') ?? null;
+  const selected = tokens.find((x) => x.uid === selectedUid) ?? null;
+  const selectedIndex = selected ? tokens.indexOf(selected) : -1;
+  const subjectPerson = tokens.find((x): x is PronounToken => x.kind === 'pronoun')?.person ?? 'er_sie_es';
+  const gloss = (tr: string) => (showTranslations ? tr : undefined);
 
-  // `customVocab.version` forces recomputation after a custom word is added:
-  // verbs/nouns/adjectives are mutated in place, so their array reference
-  // never changes on its own.
-  const verbBank = useMemo(() => (mode === 'free' ? [...verbs, ...verbsC1] : verbs), [mode, customVocab.version]);
+  // Drop tokens whose word was deleted from the custom vocabulary meanwhile.
+  useEffect(() => {
+    setTokens((prev) =>
+      prev.filter((x) => {
+        if (x.kind === 'verb') return allVerbs.some((v) => v.id === x.verbId);
+        if (x.kind === 'noun') return nouns.some((n) => n.id === x.nounId);
+        if (x.kind === 'adjective') return adjectives.some((a) => a.id === x.adjectiveId);
+        return true;
+      }),
+    );
+  }, [customVocab.version]);
 
-  const filteredVerbs = useMemo(
-    () => verbBank.filter((v) => v.infinitive.toLowerCase().includes(search.toLowerCase()) || v.tr.toLowerCase().includes(search.toLowerCase())),
-    [verbBank, search],
-  );
-  const filteredNouns = useMemo(
-    () => nouns.filter((n) => n.noun.toLowerCase().includes(search.toLowerCase()) || n.tr.toLowerCase().includes(search.toLowerCase())),
-    [search, customVocab.version],
-  );
-  const filteredAdjectives = useMemo(
-    () => adjectives.filter((a) => a.adjective.toLowerCase().includes(search.toLowerCase()) || a.tr.toLowerCase().includes(search.toLowerCase())),
-    [search, customVocab.version],
-  );
+  // `customVocab.version` forces recomputation: the word arrays are mutated in place.
+  const verbBank = useMemo<VerbEntry[]>(() => {
+    const all = mode === 'free' ? [...verbs, ...verbsC1] : [...verbs];
+    const pinned = info.pinnedVerbs.map((id) => all.find((v) => v.id === id)).filter((v): v is VerbEntry => !!v);
+    return [...pinned, ...all.filter((v) => !info.pinnedVerbs.includes(v.id))];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, customVocab.version]);
 
-  function addToken(t: SentenceToken) {
-    setTokens((prev) => [...prev, t]);
+  const q = search.trim().toLowerCase();
+  const matches = (de: string, tr: string) => !q || de.toLowerCase().includes(q) || tr.toLowerCase().includes(q);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filteredVerbs = useMemo(() => verbBank.filter((v) => matches(v.infinitive, v.tr)), [verbBank, q]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filteredNouns = useMemo(() => nouns.filter((n) => matches(n.noun, n.tr)), [q, customVocab.version]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filteredAdjectives = useMemo(() => adjectives.filter((a) => matches(a.adjective, a.tr)), [q, customVocab.version]);
+
+  function append(token: SentenceToken) {
+    setTokens((prev) => [...prev, token]);
+    setSelectedUid(null);
   }
-  function addFront(t: SentenceToken) {
-    setTokens((prev) => [t, ...prev.filter((p) => p.kind !== t.kind)]);
+  /** Question words and conjunctions open the sentence; a new one replaces the old one. */
+  function putInFront(token: SentenceToken) {
+    setTokens((prev) => [token, ...prev.filter((p) => p.kind !== token.kind)]);
+    setSelectedUid(null);
   }
-  function removeToken(t: SentenceToken) {
-    setTokens((prev) => prev.filter((p) => p.uid !== t.uid));
+  /** A sentence has one subject pronoun: picking another swaps it in place. */
+  function setPronoun(token: PronounToken) {
+    setTokens((prev) => (prev.some((p) => p.kind === 'pronoun') ? prev.map((p) => (p.kind === 'pronoun' ? token : p)) : [...prev, token]));
+    setSelectedUid(null);
   }
-  function handleTokenPress(t: SentenceToken) {
-    if (t.kind === 'verb') {
-      setEditingVerb(t);
-    } else {
-      removeToken(t);
+  function remove(uid: string) {
+    setTokens((prev) => prev.filter((p) => p.uid !== uid));
+    setSelectedUid(null);
+  }
+  function move(delta: -1 | 1) {
+    setTokens((prev) => {
+      const i = prev.findIndex((p) => p.uid === selectedUid);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+  function clear() {
+    setTokens([]);
+    setSelectedUid(null);
+    setResult(null);
+    setSearch('');
+  }
+  function check() {
+    try {
+      const r = checkSentence(tokens);
+      setResult(r);
+      recordResult(r.correct);
+    } catch {
+      clear();
     }
   }
-  function updateVerbToken(next: VerbToken) {
-    setTokens((prev) => prev.map((t) => (t.uid === next.uid ? next : t)));
-    setEditingVerb(next);
+  function changeTab(tab: Tab) {
+    setActiveTab(tab);
+    setSearch('');
+    setShowAll(false);
   }
 
-  function handleCheck() {
-    const r = checkSentence(tokens);
-    setResult(r);
-    recordResult(r.correct);
-  }
-
-  function handleClear() {
-    setTokens([]);
-    setResult(null);
-  }
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'ozne', label: 'Özne' },
-    { key: 'fiil', label: 'Fiil' },
-    { key: 'artikel', label: 'Artikel' },
-    { key: 'isim', label: 'İsim' },
-    { key: 'sifat', label: 'Sıfat' },
-    ...(info.showQuestion ? [{ key: 'soru' as Tab, label: 'Soru' }] : []),
-    ...(info.showConnector ? [{ key: 'baglac' as Tab, label: 'Bağlaç' }] : []),
-  ];
+  const searchable = activeTab === 'fiil' || activeTab === 'isim' || activeTab === 'sifat';
+  const listLength = activeTab === 'fiil' ? filteredVerbs.length : activeTab === 'isim' ? filteredNouns.length : activeTab === 'sifat' ? filteredAdjectives.length : 0;
+  const limit = showAll || q ? Infinity : PAGE_SIZE;
+  const muted = { fontSize: 13, lineHeight: 18, color: t.c.textMuted };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>{info.title}</Text>
-        <Text style={styles.instruction}>{info.instruction}</Text>
-        <Text style={styles.example}>{info.example}</Text>
+    <Page edges={['top', 'bottom']}>
+      <TopBar title={info.title} onBack={() => navigation.goBack()} />
 
-        <View style={styles.stripBox}>
-          <SentenceStrip tokens={tokens} subjectPerson={subject?.person ?? null} onTokenPress={handleTokenPress} onTokenRemove={removeToken} />
+      <ScrollView contentContainerStyle={{ padding: space(4), gap: space(4) }} keyboardShouldPersistTaps="handled">
+        <View style={{ gap: 2 }}>
+          <Text style={muted}>{info.pattern}</Text>
+          <Text style={{ fontFamily: fonts.de, fontSize: 15, color: t.c.text }}>{info.example}</Text>
         </View>
 
-        <View style={styles.actionRow}>
-          <Pressable style={styles.clearBtn} onPress={handleClear}>
-            <Text style={styles.clearText}>Temizle</Text>
-          </Pressable>
-          <Pressable style={styles.checkBtn} onPress={handleCheck} disabled={tokens.length === 0}>
-            <Text style={styles.checkText}>Kontrol Et ✓</Text>
-          </Pressable>
-        </View>
+        <SentenceStrip tokens={tokens} selectedUid={selectedUid} onSelect={(token) => setSelectedUid(token.uid === selectedUid ? null : token.uid)} />
 
-        <View style={styles.tabRow}>
-          {tabs.map((t) => (
-            <Pressable key={t.key} onPress={() => setActiveTab(t.key)} style={[styles.tab, activeTab === t.key && styles.tabActive]}>
-              <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {selected ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(2), flexWrap: 'wrap', marginTop: -space(1) }}>
+            <IconButton icon="chevronLeft" label="Sola taşı" onPress={() => move(-1)} color={selectedIndex > 0 ? t.c.text : t.c.border} />
+            <IconButton icon="chevronRight" label="Sağa taşı" onPress={() => move(1)} color={selectedIndex < tokens.length - 1 ? t.c.text : t.c.border} />
+            {selected.kind === 'verb' ? <Button label="Çekimle" variant="secondary" onPress={() => setEditingVerb(selected)} style={{ minHeight: 40 }} /> : null}
+            <Button label="Çıkar" variant="danger" icon="trash" onPress={() => remove(selected.uid)} style={{ minHeight: 40 }} />
+          </View>
+        ) : tokens.length > 0 ? (
+          <Text style={[muted, { marginTop: -space(1) }]}>Bir kelimeye dokun: taşı, çıkar ya da fiilin biçimini değiştir.</Text>
+        ) : null}
 
-        {(activeTab === 'fiil' || activeTab === 'isim' || activeTab === 'sifat') && (
-          <View style={styles.searchRow}>
-            <TextInput
-              placeholder="Ara... (Almanca ya da Türkçe)"
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-              style={[styles.search, { flex: 1, marginBottom: 0 }]}
-            />
-            <Pressable style={styles.addWordBtn} onPress={() => navigation.navigate('AddWord', { initialCategory: activeTab as WordCategory })}>
-              <Text style={styles.addWordBtnText}>+ Ekle</Text>
-            </Pressable>
+        <Pills options={info.tabs.map((tab) => ({ value: tab, label: TAB_LABEL[tab] }))} value={activeTab} onChange={changeTab} />
+
+        {searchable ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}>
+            <View style={{ flex: 1 }}>
+              <SearchField value={search} onChangeText={setSearch} placeholder="Almanca ya da Türkçe ara" />
+            </View>
+            <IconButton icon="plus" label="Kendi kelimeni ekle" color={t.c.text} onPress={() => navigation.navigate('AddWord', { initialCategory: activeTab as WordCategory })} />
+          </View>
+        ) : null}
+
+        {activeTab === 'artikel' ? (
+          <ArticleTable onPick={(def) => append(articleDefToToken(def))} />
+        ) : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(2) }}>
+            {activeTab === 'ozne' &&
+              pronouns.map((p, i) => <WordChip key={`${p.text}_${i}`} label={p.text} sub={p.tr} onPress={() => setPronoun({ uid: makeUid('pn'), kind: 'pronoun', text: p.text, person: p.person })} />)}
+
+            {activeTab === 'fiil' &&
+              filteredVerbs.slice(0, limit).map((v) => <WordChip key={v.id} label={v.infinitive} sub={gloss(v.tr)} onPress={() => append({ uid: makeUid('vb'), kind: 'verb', verbId: v.id, mode: 'finite' })} />)}
+
+            {activeTab === 'isim' &&
+              filteredNouns.slice(0, limit).map((n) => (
+                <WordChip
+                  key={n.id}
+                  label={n.noun}
+                  sub={showTranslations ? `${n.gender} · ${n.tr}` : n.gender}
+                  tone={n.gender}
+                  accessibilityLabel={`${n.gender} ${n.noun}, ${n.tr}`}
+                  onPress={() => append({ uid: makeUid('nn'), kind: 'noun', nounId: n.id })}
+                />
+              ))}
+
+            {activeTab === 'sifat' &&
+              filteredAdjectives.slice(0, limit).map((a) => <WordChip key={a.id} label={a.adjective} sub={gloss(a.tr)} onPress={() => append({ uid: makeUid('aj'), kind: 'adjective', adjectiveId: a.id })} />)}
+
+            {activeTab === 'ek' && timePlaceWords.map((w) => <WordChip key={w.text} label={w.text} sub={w.tr} onPress={() => append({ uid: makeUid('ft'), kind: 'freetext', text: w.text, tr: w.tr })} />)}
+
+            {activeTab === 'soru' && questionWords.map((w) => <WordChip key={w.word} label={w.word} sub={w.tr} onPress={() => putInFront({ uid: makeUid('qw'), kind: 'question', word: w.word, tr: w.tr })} />)}
+
+            {activeTab === 'baglac' && connectors.map((c) => <WordChip key={c.word} label={c.word} sub={c.tr} onPress={() => putInFront({ uid: makeUid('cn'), kind: 'connector', word: c.word })} />)}
           </View>
         )}
 
-        <View style={styles.bankWrap}>
-          {activeTab === 'ozne' &&
-            pronouns.map((p, i) => (
-              <WordChip
-                key={`${p.text}_${i}`}
-                label={p.text}
-                subLabel={p.tr}
-                color={colors.chipPronoun}
-                onPress={() => addFront({ uid: makeUid('pn'), kind: 'pronoun', text: p.text, person: p.person })}
-              />
-            ))}
-
-          {activeTab === 'fiil' &&
-            filteredVerbs.map((v) => (
-              <WordChip
-                key={v.id}
-                label={v.infinitive}
-                subLabel={v.tr}
-                color={colors.chipVerb}
-                onPress={() =>
-                  addToken({ uid: makeUid('vb'), kind: 'verb', verbId: v.id, mode: 'finite', chosenPerson: subject?.person ?? 'ich' })
-                }
-              />
-            ))}
-
-          {activeTab === 'artikel' &&
-            [...definiteArticles, ...indefiniteArticles].map((a) => (
-              <WordChip key={a.id} label={a.surface} subLabel={a.labelTr} color={colors.chipArticle} onPress={() => addToken(articleDefToToken(a))} />
-            ))}
-
-          {activeTab === 'isim' &&
-            filteredNouns.map((n) => (
-              <WordChip
-                key={n.id}
-                label={`${n.gender} ${n.noun}`}
-                subLabel={n.tr}
-                color={colors.chipNoun}
-                onPress={() => addToken({ uid: makeUid('nn'), kind: 'noun', nounId: n.id })}
-              />
-            ))}
-
-          {activeTab === 'sifat' &&
-            filteredAdjectives.map((a) => (
-              <WordChip
-                key={a.id}
-                label={a.adjective}
-                subLabel={a.tr}
-                color={colors.chipAdjective}
-                onPress={() => addToken({ uid: makeUid('aj'), kind: 'adjective', adjectiveId: a.id })}
-              />
-            ))}
-
-          {activeTab === 'soru' &&
-            questionWords.map((q) => (
-              <WordChip
-                key={q.word}
-                label={q.word}
-                subLabel={q.tr}
-                color={colors.chipQuestion}
-                onPress={() => addFront({ uid: makeUid('qw'), kind: 'question', word: q.word, tr: q.tr })}
-              />
-            ))}
-
-          {activeTab === 'baglac' &&
-            connectors.map((c) => (
-              <WordChip
-                key={c.word}
-                label={c.word}
-                subLabel={c.tr}
-                color={colors.chipConnector}
-                onPress={() => addFront({ uid: makeUid('cn'), kind: 'connector', word: c.word })}
-              />
-            ))}
-        </View>
+        {searchable && listLength === 0 ? <Text style={muted}>Eşleşen kelime yok. Sağdaki + ile kendi kelimeni ekleyebilirsin.</Text> : null}
+        {searchable && listLength > limit ? <Button label={`Hepsini göster (${listLength})`} variant="ghost" onPress={() => setShowAll(true)} /> : null}
       </ScrollView>
 
-      <VerbTokenEditor
-        token={editingVerb}
-        onClose={() => setEditingVerb(null)}
-        onChange={updateVerbToken}
-        onRemove={() => {
-          if (editingVerb) removeToken(editingVerb);
-          setEditingVerb(null);
-        }}
-      />
-      <FeedbackModal result={result} onClose={() => setResult(null)} />
-    </SafeAreaView>
+      <View style={{ flexDirection: 'row', gap: space(3), paddingHorizontal: space(4), paddingVertical: space(3), borderTopWidth: 1, borderTopColor: t.c.border, backgroundColor: t.c.bg }}>
+        <Button label="Temizle" variant="secondary" onPress={clear} disabled={tokens.length === 0} />
+        <Button label="Kontrol et" icon="check" onPress={check} disabled={tokens.length === 0} style={{ flex: 1 }} />
+      </View>
+
+      <VerbTokenEditor token={editingVerb} subjectPerson={subjectPerson} onClose={() => setEditingVerb(null)} onChange={(next) => setTokens((prev) => prev.map((p) => (p.uid === next.uid ? next : p)))} />
+      <FeedbackSheet result={result} onClose={() => setResult(null)} onNext={clear} />
+    </Page>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing(2), paddingBottom: spacing(6) },
-  title: { fontSize: 22, fontWeight: '800', color: colors.text },
-  instruction: { color: colors.textMuted, marginTop: spacing(0.5), fontSize: 14 },
-  example: { color: colors.accent, marginTop: spacing(0.5), fontSize: 13, fontStyle: 'italic', marginBottom: spacing(2) },
-  stripBox: { backgroundColor: colors.card, borderRadius: 16, minHeight: 64, justifyContent: 'center' },
-  actionRow: { flexDirection: 'row', marginTop: spacing(1.5), gap: spacing(1.5) as unknown as number },
-  clearBtn: { flex: 1, backgroundColor: colors.cardAlt, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  clearText: { color: colors.textMuted, fontWeight: '700' },
-  checkBtn: { flex: 2, backgroundColor: colors.accentDark, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  checkText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  tabRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing(2.5), marginBottom: spacing(1) },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.card, marginRight: 8, marginBottom: 8 },
-  tabActive: { backgroundColor: colors.accentDark },
-  tabText: { color: colors.textMuted, fontWeight: '600' },
-  tabTextActive: { color: '#fff' },
-  search: { backgroundColor: colors.card, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: spacing(1.5) },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) as unknown as number, marginBottom: spacing(1.5) },
-  addWordBtn: { backgroundColor: colors.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  addWordBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  bankWrap: { flexDirection: 'row', flexWrap: 'wrap' },
-});

@@ -1,83 +1,88 @@
 import React from 'react';
-import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
+import { Text, View } from 'react-native';
 import { allVerbs } from '../data';
-import { ALL_PERSONS, PERSON_PRONOUN, conjugatePresent, partizipII } from '../engine/conjugate';
+import { ALL_PERSONS, conjugatePresent, partizipII, Person, PERSON_PRONOUN } from '../engine/conjugate';
 import { VerbToken } from '../engine/tokens';
-import { colors, spacing } from '../theme';
+import { useTheme } from '../context/SettingsContext';
+import { fonts, space } from '../theme';
+import { SectionLabel, Sheet, Button } from './ui';
+import { WordChip } from './WordChip';
 
 interface Props {
   token: VerbToken | null;
+  /** person of the sentence's current subject, used for the "follow the subject" option */
+  subjectPerson: Person;
   onClose: () => void;
   onChange: (next: VerbToken) => void;
-  onRemove: () => void;
 }
 
-export const VerbTokenEditor: React.FC<Props> = ({ token, onClose, onChange, onRemove }) => {
-  if (!token) return null;
-  const verb = allVerbs.find((v) => v.id === token.verbId);
-  if (!verb) return null;
+export const VerbTokenEditor: React.FC<Props> = ({ token, subjectPerson, onClose, onChange }) => {
+  const t = useTheme();
+  const verb = token ? allVerbs.find((v) => v.id === token.verbId) : undefined;
+  if (!token || !verb) return null;
+
+  const pick = (next: VerbToken) => {
+    onChange(next);
+    onClose();
+  };
+  const isAuto = token.mode === 'finite' && !token.chosenPerson;
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.title}>{verb.infinitive}</Text>
-          <Text style={styles.subtitle}>{verb.tr}</Text>
+    <Sheet visible onClose={onClose}>
+      <View style={{ gap: space(4) }}>
+        <View>
+          <Text style={{ fontFamily: fonts.deBold, fontSize: 24, color: t.c.text }}>{verb.infinitive}</Text>
+          <Text style={{ fontSize: 14, color: t.c.textMuted }}>{verb.tr}</Text>
+        </View>
 
-          <Text style={styles.sectionTitle}>Şimdiki zaman (kişiye göre çekimle)</Text>
-          <View style={styles.row}>
-            {ALL_PERSONS.map((p) => (
-              <Pressable
-                key={p}
-                style={[styles.option, token.mode === 'finite' && token.chosenPerson === p && styles.optionActive]}
-                onPress={() => onChange({ ...token, mode: 'finite', chosenPerson: p })}
-              >
-                <Text style={styles.optionText}>{PERSON_PRONOUN[p]}</Text>
-                <Text style={styles.optionSub}>{conjugatePresent(verb, p)}</Text>
-              </Pressable>
-            ))}
+        <View style={{ gap: space(2) }}>
+          <SectionLabel>Şimdiki zaman</SectionLabel>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(2) }}>
+            <WordChip
+              label={conjugatePresent(verb, subjectPerson)}
+              sub="özneye uy"
+              tone={isAuto ? 'verb' : undefined}
+              selected={isAuto}
+              onPress={() => pick({ ...token, mode: 'finite', chosenPerson: undefined })}
+            />
+            {ALL_PERSONS.map((p) => {
+              const active = token.mode === 'finite' && token.chosenPerson === p;
+              return (
+                <WordChip
+                  key={p}
+                  label={conjugatePresent(verb, p)}
+                  sub={PERSON_PRONOUN[p]}
+                  tone={active ? 'verb' : undefined}
+                  selected={active}
+                  onPress={() => pick({ ...token, mode: 'finite', chosenPerson: p })}
+                />
+              );
+            })}
           </View>
+        </View>
 
-          <Text style={styles.sectionTitle}>Diğer biçimler</Text>
-          <View style={styles.row}>
-            <Pressable style={[styles.option, token.mode === 'partizip' && styles.optionActive]} onPress={() => onChange({ ...token, mode: 'partizip' })}>
-              <Text style={styles.optionText}>Partizip II</Text>
-              <Text style={styles.optionSub}>{partizipII(verb)}</Text>
-            </Pressable>
-            <Pressable style={[styles.option, token.mode === 'infinitiv' && styles.optionActive]} onPress={() => onChange({ ...token, mode: 'infinitiv' })}>
-              <Text style={styles.optionText}>Mastar</Text>
-              <Text style={styles.optionSub}>{verb.infinitive}</Text>
-            </Pressable>
+        <View style={{ gap: space(2) }}>
+          <SectionLabel>Diğer biçimler</SectionLabel>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(2) }}>
+            <WordChip
+              label={partizipII(verb)}
+              sub="Partizip II (geçmiş zaman)"
+              tone={token.mode === 'partizip' ? 'verb' : undefined}
+              selected={token.mode === 'partizip'}
+              onPress={() => pick({ ...token, mode: 'partizip', chosenPerson: undefined })}
+            />
+            <WordChip
+              label={verb.infinitive}
+              sub="Mastar (modal fiille)"
+              tone={token.mode === 'infinitiv' ? 'verb' : undefined}
+              selected={token.mode === 'infinitiv'}
+              onPress={() => pick({ ...token, mode: 'infinitiv', chosenPerson: undefined })}
+            />
           </View>
+        </View>
 
-          <View style={styles.footerRow}>
-            <Pressable style={styles.removeBtn} onPress={onRemove}>
-              <Text style={styles.removeText}>Kelimeyi çıkar</Text>
-            </Pressable>
-            <Pressable style={styles.doneBtn} onPress={onClose}>
-              <Text style={styles.doneText}>Tamam</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        <Button label="Kapat" variant="secondary" onPress={onClose} />
+      </View>
+    </Sheet>
   );
 };
-
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing(2.5) },
-  title: { color: colors.text, fontSize: 20, fontWeight: '700' },
-  subtitle: { color: colors.textMuted, fontSize: 14, marginBottom: spacing(1.5) },
-  sectionTitle: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: spacing(1.5), marginBottom: spacing(1) },
-  row: { flexDirection: 'row', flexWrap: 'wrap' },
-  option: { backgroundColor: colors.chipDefault, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, marginRight: 8, marginBottom: 8, minWidth: 90 },
-  optionActive: { borderWidth: 2, borderColor: colors.accent },
-  optionText: { color: colors.text, fontWeight: '600', fontSize: 13 },
-  optionSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  footerRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing(2) },
-  removeBtn: { paddingVertical: 10, paddingHorizontal: 16 },
-  removeText: { color: colors.error, fontWeight: '600' },
-  doneBtn: { backgroundColor: colors.accentDark, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 12 },
-  doneText: { color: '#fff', fontWeight: '700' },
-});

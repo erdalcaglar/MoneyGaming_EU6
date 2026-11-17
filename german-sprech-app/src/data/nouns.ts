@@ -60,7 +60,6 @@ export const nouns: NounEntry[] = [
   { id: 'koerper', gender: 'der', noun: 'Körper', tr: 'vücut', level: 'A2' },
   { id: 'information', gender: 'die', noun: 'Information', tr: 'bilgi', level: 'A2' },
   { id: 'wort', gender: 'das', noun: 'Wort', tr: 'kelime', level: 'A1' },
-  { id: 'eltern', gender: 'die', noun: 'Eltern', tr: 'ebeveyn', level: 'A1' },
   { id: 'gesicht', gender: 'das', noun: 'Gesicht', tr: 'yüz', level: 'A1' },
   { id: 'stufe', gender: 'die', noun: 'Stufe', tr: 'seviye', level: 'B1' },
   { id: 'buero', gender: 'das', noun: 'Büro', tr: 'ofis', level: 'A1' },

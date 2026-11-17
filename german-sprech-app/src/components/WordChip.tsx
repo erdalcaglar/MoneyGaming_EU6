@@ -1,57 +1,49 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors } from '../theme';
+import { Pressable, PressableStateCallbackType, Text } from 'react-native';
+import { useTheme } from '../context/SettingsContext';
+import { fonts, radius, space, ToneKey } from '../theme';
+
+type PressState = PressableStateCallbackType & { hovered?: boolean; focused?: boolean };
 
 interface Props {
   label: string;
-  subLabel?: string;
-  color?: string;
-  onPress?: () => void;
-  onLongPress?: () => void;
+  /** small Turkish gloss under the word */
+  sub?: string;
+  /** word-class colour; omit for a plain outlined chip */
+  tone?: ToneKey;
   selected?: boolean;
-  disabled?: boolean;
-  style?: ViewStyle;
+  onPress?: () => void;
+  accessibilityLabel?: string;
 }
 
-export const WordChip: React.FC<Props> = ({ label, subLabel, color = colors.chipDefault, onPress, onLongPress, selected, disabled, style }) => {
+export const WordChip: React.FC<Props> = ({ label, sub, tone, selected, onPress, accessibilityLabel }) => {
+  const t = useTheme();
+  const colors = tone ? t.c.tones[tone] : { bg: t.c.surface, fg: t.c.text };
   return (
     <Pressable
       onPress={onPress}
-      onLongPress={onLongPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.chip,
-        { backgroundColor: color, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
-        selected && styles.selected,
-        style,
-      ]}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? (sub ? `${label}, ${sub}` : label)}
+      accessibilityState={{ selected: !!selected }}
+      style={(state: PressState) => ({
+        minHeight: 40,
+        paddingHorizontal: space(3),
+        paddingVertical: space(1.5),
+        borderRadius: radius.chip,
+        justifyContent: 'center',
+        backgroundColor: colors.bg,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? t.c.text : tone ? colors.bg : t.c.border,
+        margin: selected ? 0 : 1,
+        opacity: state.pressed ? 0.7 : 1,
+      })}
     >
-      <Text style={styles.label}>{label}</Text>
-      {subLabel ? <Text style={styles.subLabel}>{subLabel}</Text> : null}
+      <Text style={{ fontFamily: fonts.deBold, fontSize: 16, lineHeight: 20, color: colors.fg }}>{label}</Text>
+      {sub ? (
+        <Text style={{ fontSize: 12, lineHeight: 15, color: colors.fg, opacity: 0.72 }} numberOfLines={1}>
+          {sub}
+        </Text>
+      ) : null}
     </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  selected: {
-    borderWidth: 2,
-    borderColor: colors.accent,
-  },
-  label: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  subLabel: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 11,
-    marginTop: 1,
-  },
-});

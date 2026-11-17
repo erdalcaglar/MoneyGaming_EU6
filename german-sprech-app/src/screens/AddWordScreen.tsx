@@ -1,280 +1,213 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, WordCategory } from '../navigation/types';
+import { Icon } from '../components/Icon';
+import { Button, Page, Segmented, TopBar } from '../components/ui';
 import { useCustomVocab } from '../context/CustomVocabContext';
+import { useTheme } from '../context/SettingsContext';
 import { verbs } from '../data/verbs';
 import { verbsC1 } from '../data/verbsC1';
 import { nouns } from '../data/nouns';
 import { adjectives } from '../data/adjectives';
-import { Level, Gender, Auxiliary } from '../data/types';
-import { colors, spacing } from '../theme';
+import { Auxiliary, Gender, Level } from '../data/types';
+import { fonts, radius, space } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddWord'>;
 
-const LEVELS: Level[] = ['A1', 'A2', 'B1', 'C1'];
-const GENDERS: Gender[] = ['der', 'die', 'das'];
-
-function Segmented<T extends string>({ options, value, onChange, labels }: { options: T[]; value: T; onChange: (v: T) => void; labels?: Partial<Record<T, string>> }) {
+const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => {
+  const t = useTheme();
   return (
-    <View style={styles.segmentRow}>
-      {options.map((opt) => (
-        <Pressable key={opt} onPress={() => onChange(opt)} style={[styles.segment, value === opt && styles.segmentActive]}>
-          <Text style={[styles.segmentText, value === opt && styles.segmentTextActive]}>{labels?.[opt] ?? opt}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={{ gap: space(1.5) }}>
+      <Text style={{ fontSize: 14, fontWeight: '600', color: t.c.text }}>{label}</Text>
       {children}
+      {hint ? <Text style={{ fontSize: 13, lineHeight: 18, color: t.c.textMuted }}>{hint}</Text> : null}
     </View>
   );
-}
+};
+
+const Input: React.FC<{ value: string; onChangeText: (v: string) => void; placeholder?: string; german?: boolean }> = ({ value, onChangeText, placeholder, german }) => {
+  const t = useTheme();
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={t.c.textMuted}
+      autoCapitalize="none"
+      autoCorrect={false}
+      style={{
+        minHeight: 48,
+        backgroundColor: t.c.surface,
+        borderWidth: 1,
+        borderColor: t.c.border,
+        borderRadius: radius.control,
+        paddingHorizontal: space(3),
+        color: t.c.text,
+        fontSize: 16,
+        fontFamily: german ? fonts.de : undefined,
+      }}
+    />
+  );
+};
 
 export const AddWordScreen: React.FC<Props> = ({ route, navigation }) => {
+  const t = useTheme();
   const { addVerb, addNoun, addAdjective } = useCustomVocab();
   const [category, setCategory] = useState<WordCategory>(route.params?.initialCategory ?? 'fiil');
   const [level, setLevel] = useState<Level>('A1');
-  const [success, setSuccess] = useState<string | null>(null);
-
-  // Fiil fields
-  const [infinitive, setInfinitive] = useState('');
-  const [verbTr, setVerbTr] = useState('');
+  const [german, setGerman] = useState('');
+  const [turkish, setTurkish] = useState('');
+  const [gender, setGender] = useState<Gender>('der');
   const [auxiliary, setAuxiliary] = useState<Auxiliary>('haben');
   const [separablePrefix, setSeparablePrefix] = useState('');
   const [irregular, setIrregular] = useState(false);
   const [duForm, setDuForm] = useState('');
   const [erForm, setErForm] = useState('');
   const [partizip, setPartizip] = useState('');
-
-  // İsim fields
-  const [gender, setGender] = useState<Gender>('der');
-  const [nounText, setNounText] = useState('');
-  const [nounTr, setNounTr] = useState('');
-
-  // Sıfat fields
-  const [adjectiveText, setAdjectiveText] = useState('');
-  const [adjectiveTr, setAdjectiveTr] = useState('');
-
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
-  const duplicateWarning = useMemo(() => {
-    if (category === 'fiil' && infinitive.trim()) {
-      const exists = [...verbs, ...verbsC1].some((v) => v.infinitive.toLowerCase() === infinitive.trim().toLowerCase());
-      return exists ? `"${infinitive.trim()}" zaten kelime bankasında var — yine de ekleyebilirsin, tekrar oluşur.` : null;
-    }
-    if (category === 'isim' && nounText.trim()) {
-      const exists = nouns.some((n) => n.noun.toLowerCase() === nounText.trim().toLowerCase());
-      return exists ? `"${nounText.trim()}" zaten kelime bankasında var.` : null;
-    }
-    if (category === 'sifat' && adjectiveText.trim()) {
-      const exists = adjectives.some((a) => a.adjective.toLowerCase() === adjectiveText.trim().toLowerCase());
-      return exists ? `"${adjectiveText.trim()}" zaten kelime bankasında var.` : null;
-    }
-    return null;
-  }, [category, infinitive, nounText, adjectiveText]);
+  const alreadyThere = useMemo(() => {
+    const word = german.trim().toLowerCase();
+    if (!word) return false;
+    if (category === 'fiil') return [...verbs, ...verbsC1].some((v) => v.infinitive.toLowerCase() === word);
+    if (category === 'isim') return nouns.some((n) => n.noun.toLowerCase() === word);
+    return adjectives.some((a) => a.adjective.toLowerCase() === word);
+  }, [category, german]);
 
-  function resetVerbFields() {
-    setInfinitive('');
-    setVerbTr('');
-    setAuxiliary('haben');
+  function reset() {
+    setGerman('');
+    setTurkish('');
     setSeparablePrefix('');
     setIrregular(false);
     setDuForm('');
     setErForm('');
     setPartizip('');
   }
-  function resetNounFields() {
-    setNounText('');
-    setNounTr('');
-  }
-  function resetAdjectiveFields() {
-    setAdjectiveText('');
-    setAdjectiveTr('');
-  }
 
-  function handleSave() {
+  function save() {
     setError(null);
-    setSuccess(null);
+    setSaved(null);
+    const de = german.trim();
+    const tr = turkish.trim();
+    if (!de) return setError('Almanca kelimeyi yaz.');
+    if (!tr) return setError('Türkçe anlamını yaz.');
 
     if (category === 'fiil') {
-      const inf = infinitive.trim();
-      const tr = verbTr.trim();
-      if (!inf) return setError('Mastar (Almanca fiil) boş olamaz.');
-      if (!tr) return setError('Türkçe anlamı boş olamaz.');
-      const prefix = separablePrefix.trim();
-      if (prefix && !inf.toLowerCase().startsWith(prefix.toLowerCase())) {
-        return setError(`Ayrılabilir önek ("${prefix}"), fiilin ("${inf}") başında olmalı.`);
-      }
-      const entry = addVerb({
-        infinitive: inf,
+      const prefix = separablePrefix.trim().toLowerCase();
+      if (!/(en|n)$/.test(de.toLowerCase())) return setError('Fiili mastar hâlinde yaz: "-en" ya da "-n" ile biter (ör. tanzen, wandern).');
+      if (prefix && !de.toLowerCase().startsWith(prefix)) return setError(`Ayrılabilir ek "${prefix}", fiilin başında olmalı (ör. auf → aufstehen).`);
+      const forms = { duForm: duForm.trim() || undefined, erForm: erForm.trim() || undefined, partizipII: partizip.trim() || undefined };
+      addVerb({
+        infinitive: de.toLowerCase(),
         tr,
         level,
         auxiliary,
         separablePrefix: prefix || undefined,
-        irregular:
-          irregular && (duForm.trim() || erForm.trim() || partizip.trim())
-            ? { duForm: duForm.trim() || undefined, erForm: erForm.trim() || undefined, partizipII: partizip.trim() || undefined }
-            : undefined,
+        irregular: irregular && (forms.duForm || forms.erForm || forms.partizipII) ? forms : undefined,
       });
-      setSuccess(`"${entry.infinitive}" fiil bankasına eklendi ✓`);
-      resetVerbFields();
-      return;
+      setSaved(de.toLowerCase());
+    } else if (category === 'isim') {
+      const noun = de.charAt(0).toUpperCase() + de.slice(1);
+      addNoun({ gender, noun, tr, level });
+      setSaved(`${gender} ${noun}`);
+    } else {
+      addAdjective({ adjective: de.toLowerCase(), tr, level });
+      setSaved(de.toLowerCase());
     }
-
-    if (category === 'isim') {
-      const n = nounText.trim();
-      const tr = nounTr.trim();
-      if (!n) return setError('İsim (Almanca) boş olamaz.');
-      if (!tr) return setError('Türkçe anlamı boş olamaz.');
-      const entry = addNoun({ gender, noun: n, tr, level });
-      setSuccess(`"${entry.gender} ${entry.noun}" isim bankasına eklendi ✓`);
-      resetNounFields();
-      return;
-    }
-
-    const a = adjectiveText.trim();
-    const tr = adjectiveTr.trim();
-    if (!a) return setError('Sıfat (Almanca) boş olamaz.');
-    if (!tr) return setError('Türkçe anlamı boş olamaz.');
-    const entry = addAdjective({ adjective: a, tr, level });
-    setSuccess(`"${entry.adjective}" sıfat bankasına eklendi ✓`);
-    resetAdjectiveFields();
+    reset();
   }
 
+  const placeholders = { fiil: ['ör. tanzen', 'ör. dans etmek'], isim: ['ör. Fahrrad', 'ör. bisiklet'], sifat: ['ör. lustig', 'ör. komik'] }[category];
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <Page edges={['top', 'bottom']}>
+      <TopBar title="Kelime ekle" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Kelime Ekle</Text>
-          <Text style={styles.subtitle}>Kendi kelimeni ekle, hemen Cümle Kur ve Kelime Bankası'nda görün.</Text>
+        <ScrollView contentContainerStyle={{ padding: space(4), gap: space(5) }} keyboardShouldPersistTaps="handled">
+          <Segmented<WordCategory>
+            value={category}
+            onChange={(c) => {
+              setCategory(c);
+              setError(null);
+              setSaved(null);
+            }}
+            options={[
+              { value: 'fiil', label: 'Fiil' },
+              { value: 'isim', label: 'İsim' },
+              { value: 'sifat', label: 'Sıfat' },
+            ]}
+          />
 
-          <FormField label="Kategori">
-            <Segmented
-              options={['fiil', 'isim', 'sifat'] as WordCategory[]}
-              value={category}
-              onChange={(c) => {
-                setCategory(c);
-                setError(null);
-                setSuccess(null);
-              }}
-              labels={{ fiil: 'Fiil', isim: 'İsim', sifat: 'Sıfat' }}
-            />
-          </FormField>
+          {category === 'isim' ? (
+            <Field label="Artikel">
+              <Segmented<Gender> value={gender} onChange={setGender} options={[{ value: 'der', label: 'der' }, { value: 'die', label: 'die' }, { value: 'das', label: 'das' }]} />
+            </Field>
+          ) : null}
 
-          <FormField label="Seviye">
-            <Segmented options={LEVELS} value={level} onChange={setLevel} />
-          </FormField>
+          <Field label={category === 'fiil' ? 'Almanca (mastar)' : category === 'isim' ? 'Almanca (artikelsiz)' : 'Almanca'} hint={alreadyThere ? 'Bu kelime bankada zaten var; eklersen iki kez görünür.' : undefined}>
+            <Input value={german} onChangeText={setGerman} placeholder={placeholders[0]} german />
+          </Field>
+          <Field label="Türkçe anlamı">
+            <Input value={turkish} onChangeText={setTurkish} placeholder={placeholders[1]} />
+          </Field>
 
-          {category === 'fiil' && (
+          {category === 'fiil' ? (
             <>
-              <FormField label="Mastar (Almanca) *">
-                <TextInput style={styles.input} placeholder="ör. tanzen" placeholderTextColor={colors.textMuted} value={infinitive} onChangeText={setInfinitive} autoCapitalize="none" />
-              </FormField>
-              <FormField label="Türkçe anlamı *">
-                <TextInput style={styles.input} placeholder="ör. dans etmek" placeholderTextColor={colors.textMuted} value={verbTr} onChangeText={setVerbTr} />
-              </FormField>
-              <FormField label="Perfekt'te yardımcı fiil">
-                <Segmented options={['haben', 'sein'] as Auxiliary[]} value={auxiliary} onChange={setAuxiliary} />
-              </FormField>
-              <FormField label="Ayrılabilir önek (opsiyonel)">
-                <TextInput style={styles.input} placeholder="ör. auf (aufstehen için)" placeholderTextColor={colors.textMuted} value={separablePrefix} onChangeText={setSeparablePrefix} autoCapitalize="none" />
-              </FormField>
+              <Field label="Geçmiş zamanda yardımcı fiil" hint="Yer ya da durum değişikliği bildiren fiiller (gehen, kommen, aufwachen…) sein alır; diğerleri haben.">
+                <Segmented<Auxiliary> value={auxiliary} onChange={setAuxiliary} options={[{ value: 'haben', label: 'haben' }, { value: 'sein', label: 'sein' }]} />
+              </Field>
+              <Field label="Ayrılabilir ek (varsa)" hint='Örn. "aufstehen" için auf: "Ich stehe auf."'>
+                <Input value={separablePrefix} onChangeText={setSeparablePrefix} placeholder="ör. auf" german />
+              </Field>
 
-              <Pressable style={styles.toggleRow} onPress={() => setIrregular((v) => !v)}>
-                <View style={[styles.checkbox, irregular && styles.checkboxActive]}>{irregular ? <Text style={styles.checkmark}>✓</Text> : null}</View>
-                <Text style={styles.toggleLabel}>Düzensiz (güçlü) fiil — du/er ve Partizip II'yi elle gir</Text>
+              <Pressable onPress={() => setIrregular((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: irregular }} style={{ flexDirection: 'row', alignItems: 'center', gap: space(3), minHeight: 44 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: irregular ? t.c.text : t.c.border, backgroundColor: irregular ? t.c.text : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                  {irregular ? <Icon name="check" size={16} color={t.c.bg} strokeWidth={3} /> : null}
+                </View>
+                <Text style={{ flex: 1, fontSize: 15, color: t.c.text }}>Düzensiz fiil: biçimlerini kendim yazacağım</Text>
               </Pressable>
 
-              {irregular && (
-                <View style={styles.irregularBox}>
-                  <Text style={styles.irregularHint}>Boş bıraktığın alanlar için uygulama düzenli çekim kuralını uygular — bu yanlış olabilir, biliyorsan doldur.</Text>
-                  <FormField label="du hâli (ör. nimmst)">
-                    <TextInput style={styles.input} placeholderTextColor={colors.textMuted} value={duForm} onChangeText={setDuForm} autoCapitalize="none" />
-                  </FormField>
-                  <FormField label="er/sie/es hâli (ör. nimmt)">
-                    <TextInput style={styles.input} placeholderTextColor={colors.textMuted} value={erForm} onChangeText={setErForm} autoCapitalize="none" />
-                  </FormField>
-                  <FormField label="Partizip II (ör. genommen)">
-                    <TextInput style={styles.input} placeholderTextColor={colors.textMuted} value={partizip} onChangeText={setPartizip} autoCapitalize="none" />
-                  </FormField>
+              {irregular ? (
+                <View style={{ gap: space(4) }}>
+                  <Text style={{ fontSize: 13, lineHeight: 18, color: t.c.textMuted }}>Boş bıraktığın biçim düzenli kurala göre üretilir.</Text>
+                  <Field label="du biçimi">
+                    <Input value={duForm} onChangeText={setDuForm} placeholder="ör. nimmst" german />
+                  </Field>
+                  <Field label="er / sie / es biçimi">
+                    <Input value={erForm} onChangeText={setErForm} placeholder="ör. nimmt" german />
+                  </Field>
+                  <Field label="Partizip II">
+                    <Input value={partizip} onChangeText={setPartizip} placeholder="ör. genommen" german />
+                  </Field>
                 </View>
-              )}
+              ) : null}
             </>
-          )}
+          ) : null}
 
-          {category === 'isim' && (
-            <>
-              <FormField label="Cinsiyet (Artikel) *">
-                <Segmented options={GENDERS} value={gender} onChange={setGender} />
-              </FormField>
-              <FormField label="İsim (Almanca, artikelsiz) *">
-                <TextInput style={styles.input} placeholder="ör. Fahrrad" placeholderTextColor={colors.textMuted} value={nounText} onChangeText={setNounText} />
-              </FormField>
-              <FormField label="Türkçe anlamı *">
-                <TextInput style={styles.input} placeholder="ör. bisiklet" placeholderTextColor={colors.textMuted} value={nounTr} onChangeText={setNounTr} />
-              </FormField>
-            </>
-          )}
+          <Field label="Seviye">
+            <Segmented<Level> value={level} onChange={setLevel} options={[{ value: 'A1', label: 'A1' }, { value: 'A2', label: 'A2' }, { value: 'B1', label: 'B1' }, { value: 'C1', label: 'C1' }]} />
+          </Field>
 
-          {category === 'sifat' && (
-            <>
-              <FormField label="Sıfat (Almanca) *">
-                <TextInput style={styles.input} placeholder="ör. lustig" placeholderTextColor={colors.textMuted} value={adjectiveText} onChangeText={setAdjectiveText} autoCapitalize="none" />
-              </FormField>
-              <FormField label="Türkçe anlamı *">
-                <TextInput style={styles.input} placeholder="ör. komik" placeholderTextColor={colors.textMuted} value={adjectiveTr} onChangeText={setAdjectiveTr} />
-              </FormField>
-            </>
-          )}
+          {error ? (
+            <View style={{ flexDirection: 'row', gap: space(2), alignItems: 'center' }}>
+              <Icon name="alert" size={18} color={t.c.error} />
+              <Text style={{ flex: 1, fontSize: 14, color: t.c.error }}>{error}</Text>
+            </View>
+          ) : null}
+          {saved ? (
+            <View style={{ flexDirection: 'row', gap: space(2), alignItems: 'center' }}>
+              <Icon name="checkCircle" size={18} color={t.c.success} />
+              <Text style={{ flex: 1, fontSize: 14, color: t.c.success }}>
+                <Text style={{ fontFamily: fonts.deBold }}>{saved}</Text> eklendi. Bir tane daha ekleyebilirsin.
+              </Text>
+            </View>
+          ) : null}
 
-          {duplicateWarning ? <Text style={styles.warningText}>⚠️ {duplicateWarning}</Text> : null}
-          {error ? <Text style={styles.errorText}>❌ {error}</Text> : null}
-          {success ? <Text style={styles.successText}>{success}</Text> : null}
-
-          <Pressable style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveText}>Kaydet</Text>
-          </Pressable>
-          <Pressable style={styles.doneBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.doneText}>Bitti, geri dön</Text>
-          </Pressable>
+          <Button label="Kaydet" onPress={save} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Page>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing(2.5), paddingBottom: spacing(6) },
-  title: { fontSize: 22, fontWeight: '800', color: colors.text },
-  subtitle: { color: colors.textMuted, marginTop: spacing(0.5), fontSize: 14, marginBottom: spacing(2) },
-  field: { marginBottom: spacing(1.75) },
-  fieldLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: spacing(0.75), textTransform: 'uppercase' },
-  input: { backgroundColor: colors.card, color: colors.text, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  segmentRow: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 4 },
-  segment: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
-  segmentActive: { backgroundColor: colors.accentDark },
-  segmentText: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
-  segmentTextActive: { color: '#fff' },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing(1.5) },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: spacing(1.25), alignItems: 'center', justifyContent: 'center' },
-  checkboxActive: { backgroundColor: colors.accentDark, borderColor: colors.accentDark },
-  checkmark: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  toggleLabel: { color: colors.text, fontSize: 13, flexShrink: 1 },
-  irregularBox: { backgroundColor: colors.card, borderRadius: 14, padding: spacing(1.5), marginBottom: spacing(1.5) },
-  irregularHint: { color: colors.info, fontSize: 12, marginBottom: spacing(1), lineHeight: 17 },
-  warningText: { color: colors.info, fontSize: 13, marginBottom: spacing(1) },
-  errorText: { color: colors.error, fontSize: 13, marginBottom: spacing(1), fontWeight: '600' },
-  successText: { color: colors.success, fontSize: 14, marginBottom: spacing(1), fontWeight: '700' },
-  saveBtn: { backgroundColor: colors.accentDark, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: spacing(1) },
-  saveText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  doneBtn: { paddingVertical: 14, alignItems: 'center' },
-  doneText: { color: colors.textMuted, fontWeight: '600' },
-});

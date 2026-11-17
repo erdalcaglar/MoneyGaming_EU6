@@ -1,6 +1,6 @@
 import { checkSentence } from '../grammar';
-import { makeUid, PronounToken, VerbToken, ArticleToken, NounToken, AdjectiveToken, QuestionToken, ConnectorToken } from '../tokens';
-import { definiteArticles } from '../../data/articles';
+import { makeUid, PronounToken, VerbToken, ArticleToken, NounToken, AdjectiveToken, QuestionToken, ConnectorToken, FreeTextToken } from '../tokens';
+import { allArticles as definiteArticles } from '../../data/articles';
 
 function pronoun(text: string, person: PronounToken['person']): PronounToken {
   return { uid: makeUid('p'), kind: 'pronoun', text, person };
@@ -17,6 +17,9 @@ function noun(nounId: string): NounToken {
 }
 function adjective(adjectiveId: string): AdjectiveToken {
   return { uid: makeUid('aj'), kind: 'adjective', adjectiveId };
+}
+function free(text: string): FreeTextToken {
+  return { uid: makeUid('f'), kind: 'freetext', text, tr: '' };
 }
 function question(word: string): QuestionToken {
   return { uid: makeUid('q'), kind: 'question', word, tr: '' };
@@ -74,10 +77,29 @@ describe('checkSentence — simple present', () => {
   });
 
   it('flags verb not in second position (V2 violation)', () => {
-    const tokens = [verb('kommen', 'finite', 'ich'), pronoun('ich', 'ich')];
+    const tokens = [pronoun('ich', 'ich'), article('def_m_akk'), noun('mann'), verb('sehen', 'finite', 'ich')];
     const result = checkSentence(tokens);
     expect(result.correct).toBe(false);
     expect(result.issues.some((i) => i.ruleId === 'v2-word-order')).toBe(true);
+    expect(result.correctedSentence).toBe('Ich sehe den Mann.');
+  });
+
+  it('lets the verb follow the subject when no person was picked explicitly', () => {
+    const tokens = [verb('kommen', 'finite'), pronoun('du', 'du')];
+    // verb was added before the subject: it must still agree automatically
+    expect(checkSentence([tokens[1], tokens[0]]).yourSentence).toBe('Du kommst.');
+  });
+
+  it('renders a separable verb with its prefix at the end of the clause', () => {
+    const result = checkSentence([pronoun('ich', 'ich'), verb('aufstehen', 'finite'), free('heute')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Ich stehe heute auf.');
+  });
+
+  it('accepts an adjective used as an adverb', () => {
+    const result = checkSentence([pronoun('ich', 'ich'), verb('lernen', 'finite'), adjective('schnell')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Ich lerne schnell.');
   });
 });
 
@@ -167,14 +189,11 @@ describe('checkSentence — never presents a fake "correction" that is still wro
     expect(result.correctedSentence).toBe('');
   });
 
-  it('accepts "der Weg ist lang" (Weg as the real subject, no pronoun) is out of scope but does not crash', () => {
-    // MVP requires a pronoun subject; a noun-only subject should be reported
-    // as missing-subject rather than silently mishandled.
-    const tokens = [article('def_m_nom'), noun('weg'), verb('sein', 'finite', 'er_sie_es'), adjective('lang')];
+  it('accepts a noun as the subject: "Der Weg ist lang."', () => {
+    const tokens = [article('def_m_nom'), noun('weg'), verb('sein', 'finite'), adjective('lang')];
     const result = checkSentence(tokens);
-    expect(result.correct).toBe(false);
-    expect(result.issues.some((i) => i.ruleId === 'missing-subject')).toBe(true);
-    expect(result.correctable).toBe(false);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Der Weg ist lang.');
   });
 
   it('never sets correctable=true with an empty correctedSentence, and never correctable=false with a non-empty one', () => {
@@ -183,7 +202,8 @@ describe('checkSentence — never presents a fake "correction" that is still wro
       [pronoun('du', 'du'), verb('kommen', 'finite', 'ich')],
       [pronoun('ich', 'ich'), verb('sehen', 'finite', 'ich'), article('def_m_nom'), noun('mann')],
       [pronoun('ich', 'ich'), verb('sein', 'finite', 'ich'), article('def_m_nom'), noun('weg'), adjective('lang')],
-      [article('def_m_nom'), noun('weg'), verb('sein', 'finite', 'er_sie_es'), adjective('lang')],
+      [verb('kommen', 'finite', 'ich')],
+      [pronoun('ich', 'ich'), pronoun('du', 'du'), verb('kommen', 'finite')],
     ];
     for (const tokens of scenarios) {
       const result = checkSentence(tokens);
@@ -199,5 +219,99 @@ describe('checkSentence — modal verbs', () => {
     const result = checkSentence(tokens);
     expect(result.correct).toBe(true);
     expect(result.yourSentence).toBe('Ich kann gehen.');
+  });
+});
+
+describe('checkSentence — noun subjects, fronting and questions', () => {
+  it('conjugates for a noun subject and flags a wrong person', () => {
+    const wrong = checkSentence([article('def_m_nom'), noun('mann'), verb('kommen', 'finite', 'ich')]);
+    expect(wrong.correct).toBe(false);
+    expect(wrong.issues.some((i) => i.ruleId === 'subject-verb-agreement')).toBe(true);
+    expect(wrong.correctedSentence).toBe('Der Mann kommt.');
+  });
+
+  it('requires the subject to be Nominativ', () => {
+    const result = checkSentence([article('def_m_akk'), noun('mann'), verb('kommen', 'finite')]);
+    expect(result.issues.some((i) => i.ruleId === 'subject-nominativ')).toBe(true);
+    expect(result.correctedSentence).toBe('Der Mann kommt.');
+  });
+
+  it('accepts a fronted object: "Den Mann sehe ich."', () => {
+    const result = checkSentence([article('def_m_akk'), noun('mann'), verb('sehen', 'finite'), pronoun('ich', 'ich')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Den Mann sehe ich.');
+  });
+
+  it('accepts a fronted time word with inversion: "Heute gehe ich nach Hause."', () => {
+    const result = checkSentence([free('heute'), verb('gehen', 'finite'), pronoun('ich', 'ich'), free('nach Hause')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Heute gehe ich nach Hause.');
+  });
+
+  it('keeps the fronted word when only the case is wrong', () => {
+    const result = checkSentence([free('heute'), verb('sehen', 'finite'), pronoun('ich', 'ich'), article('def_m_nom'), noun('mann')]);
+    expect(result.correctedSentence).toBe('Heute sehe ich den Mann.');
+  });
+
+  it('treats verb-first + subject as a Ja/Nein question', () => {
+    const result = checkSentence([verb('kommen', 'finite'), pronoun('du', 'du')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Kommst du?');
+    expect(result.issues.some((i) => i.ruleId === 'ja-nein-frage' && i.severity === 'info')).toBe(true);
+  });
+
+  it('accepts the question word itself as subject: "Wer kommt?"', () => {
+    const result = checkSentence([question('wer'), verb('kommen', 'finite')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Wer kommt?');
+  });
+
+  it('reports a sentence with no subject at all', () => {
+    const result = checkSentence([verb('kommen', 'finite', 'ich')]);
+    expect(result.issues.some((i) => i.ruleId === 'missing-subject')).toBe(true);
+    expect(result.correctable).toBe(false);
+  });
+});
+
+describe('checkSentence — noun phrases', () => {
+  it('declines an adjective between article and noun', () => {
+    const akk = checkSentence([pronoun('ich', 'ich'), verb('sehen', 'finite'), article('def_m_akk'), adjective('gross'), noun('mann')]);
+    expect(akk.correct).toBe(true);
+    expect(akk.yourSentence).toBe('Ich sehe den großen Mann.');
+
+    const nom = checkSentence([article('indef_n_nom'), adjective('klein'), noun('kind'), verb('lachen', 'finite')]);
+    expect(nom.yourSentence).toBe('Ein kleines Kind lacht.');
+
+    const stem = checkSentence([article('def_m_nom'), adjective('hoch'), noun('berg'), verb('sein', 'finite'), adjective('schoen')]);
+    expect(stem.yourSentence).toBe('Der hohe Berg ist schön.');
+  });
+
+  it('accepts a predicate noun after sein and keeps it Nominativ', () => {
+    const ok = checkSentence([pronoun('ich', 'ich'), verb('sein', 'finite'), article('indef_m_nom'), adjective('gut'), noun('lehrer')]);
+    expect(ok.correct).toBe(true);
+    expect(ok.yourSentence).toBe('Ich bin ein guter Lehrer.');
+
+    const wrong = checkSentence([pronoun('ich', 'ich'), verb('sein', 'finite'), article('def_m_akk'), noun('lehrer')]);
+    expect(wrong.issues.some((i) => i.ruleId === 'copula-nominativ')).toBe(true);
+    expect(wrong.correctedSentence).toBe('Ich bin der Lehrer.');
+  });
+
+  it('allows Dativ person + Akkusativ thing with a two-object verb', () => {
+    const result = checkSentence([pronoun('ich', 'ich'), verb('zeigen', 'finite'), article('def_m_dat'), noun('mann'), article('def_n_akk'), noun('bild')]);
+    expect(result.correct).toBe(true);
+    expect(result.yourSentence).toBe('Ich zeige dem Mann das Bild.');
+  });
+
+  it('accepts a bare noun object and flags an article with no noun', () => {
+    expect(checkSentence([pronoun('ich', 'ich'), verb('trinken', 'finite'), noun('wasser')]).correct).toBe(true);
+    const dangling = checkSentence([pronoun('ich', 'ich'), verb('trinken', 'finite'), article('def_n_akk')]);
+    expect(dangling.issues.some((i) => i.ruleId === 'dangling-article')).toBe(true);
+    expect(dangling.correctable).toBe(false);
+  });
+
+  it('flags a second Nominativ next to a verb that takes no object', () => {
+    const result = checkSentence([pronoun('ich', 'ich'), verb('kommen', 'finite'), article('def_m_nom'), noun('mann')]);
+    expect(result.issues.some((i) => i.ruleId === 'extra-nominativ')).toBe(true);
+    expect(result.correctable).toBe(false);
   });
 });

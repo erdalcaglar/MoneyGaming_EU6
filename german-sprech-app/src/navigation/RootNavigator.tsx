@@ -1,37 +1,28 @@
 import React from 'react';
-import { NavigationContainer, DarkTheme, Theme } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer, Theme as NavTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
-import { HomeScreen } from '../screens/HomeScreen';
+import { MainShell } from '../screens/MainShell';
 import { BuilderScreen } from '../screens/BuilderScreen';
-import { WordListScreen } from '../screens/WordListScreen';
-import { ExpressionsScreen } from '../screens/ExpressionsScreen';
 import { AddWordScreen } from '../screens/AddWordScreen';
-import { colors } from '../theme';
+import { useTheme } from '../context/SettingsContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const navTheme: Theme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    background: colors.bg,
-    card: colors.card,
-    text: colors.text,
-    primary: colors.accent,
-    border: colors.border,
-  },
-};
-
 export const RootNavigator: React.FC = () => {
+  const t = useTheme();
+  const base = t.scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const navTheme: NavTheme = {
+    ...base,
+    colors: { ...base.colors, background: t.c.bg, card: t.c.surface, text: t.c.text, primary: t.c.accent, border: t.c.border },
+  };
+
   return (
-    <NavigationContainer theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.card }, headerTintColor: colors.text }}>
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Deutsch Sprechen' }} />
-        <Stack.Screen name="Builder" component={BuilderScreen} options={{ title: 'Cümle Kur' }} />
-        <Stack.Screen name="WordList" component={WordListScreen} options={{ title: 'Kelime Bankası' }} />
-        <Stack.Screen name="Expressions" component={ExpressionsScreen} options={{ title: 'Günlük İfadeler' }} />
-        <Stack.Screen name="AddWord" component={AddWordScreen} options={{ title: 'Kelime Ekle', presentation: 'modal' }} />
+    <NavigationContainer theme={navTheme} documentTitle={{ formatter: () => 'Deutsch Sprechen' }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.c.bg } }}>
+        <Stack.Screen name="Main" component={MainShell} />
+        <Stack.Screen name="Builder" component={BuilderScreen} />
+        <Stack.Screen name="AddWord" component={AddWordScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

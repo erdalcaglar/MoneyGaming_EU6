@@ -12,7 +12,6 @@ export const questionWords: QuestionWordDef[] = [
   { word: 'wann', tr: 'ne zaman' },
   { word: 'warum', tr: 'neden' },
   { word: 'wie', tr: 'nasıl' },
-  { word: 'welche', tr: 'hangi' },
   { word: 'wie viel', tr: 'ne kadar' },
 ];
 
@@ -34,7 +33,7 @@ export const connectors: ConnectorDef[] = [
 export interface FreeTextDef {
   text: string;
   tr: string;
-  category: 'zeit' | 'ort';
+  category: 'zeit' | 'ort' | 'partikel';
 }
 
 export const timePlaceWords: FreeTextDef[] = [
@@ -49,4 +48,10 @@ export const timePlaceWords: FreeTextDef[] = [
   { text: 'dort', tr: 'orada', category: 'ort' },
   { text: 'zu Hause', tr: 'evde', category: 'ort' },
   { text: 'in der Schule', tr: 'okulda', category: 'ort' },
+  { text: 'nach Hause', tr: 'eve', category: 'ort' },
+  { text: 'nicht', tr: 'değil / -me', category: 'partikel' },
+  { text: 'gern', tr: 'severek', category: 'partikel' },
+  { text: 'auch', tr: 'de / da', category: 'partikel' },
+  { text: 'sehr', tr: 'çok', category: 'partikel' },
+  { text: 'vielleicht', tr: 'belki', category: 'partikel' },
 ];

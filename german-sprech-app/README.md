@@ -1,78 +1,84 @@
-# Deutsch Sprechen 🇩🇪
+# Deutsch Sprechen
 
-Almanca'yı **kelimelerle cümle kurarak** öğreten, iOS ve Android'de yayınlanabilen bir React Native (Expo) uygulaması.
+Almancayı **kelimelerle cümle kurarak** öğreten uygulama. Tek kod tabanı; iPhone, Android telefon ve web tarayıcısında (Windows, Mac, Linux) çalışır.
 
-Kaynak: Instagram'daki "Sizi Konuşturacak 100 Fiil / 200 İsim / 100 Sıfat / 100 C1 Fiil" görsellerindeki kelime bankaları temizlenip yapılandırılmış veri hâline getirildi ve bunun üzerine **gerçek bir gramer motoru** inşa edildi.
+Kelime bankaları "Sizi Konuşturacak 100 Fiil / 200 İsim / 100 Sıfat / 100 C1 Fiil" listelerinden temizlenip yapılandırıldı; üzerine cümleyi denetleyen bir gramer motoru yazıldı.
 
-## Uygulama ne yapıyor?
+## Ne yapıyor?
 
-1. **Kelime seç, cümle kur**: Özne (ich/du/er...), fiil, artikel (der/die/das/den/dem...), isim, sıfat, soru kelimesi ve bağlaç bankalarından dokunarak bir cümle inşa edersin.
-2. **"Kontrol Et"e bas**: Dahili gramer motoru cümleni analiz eder:
-   - Fiil çekimi özneyle uyuşuyor mu? (ich komme / du kommst / er kommt...)
-   - **Perfekt'te haben mi sein mi?** — Tam olarak sorduğun örnek: "Ich habe gekommen" ❌ → motor bunun bir hareket fiili (kommen) olduğunu, dolayısıyla "sein" gerektiğini anlar ve **"Ich bin gekommen"** ✅ düzeltmesini verir.
-   - Kelime sırası doğru mu? (V2 kuralı, W-Fragen sırası, weil/dass'ta fiilin sona gitmesi, Modal fiil + mastar sıralaması)
-   - Akkusativ/Dativ hâli doğru mu? (den Mann / dem Mann)
-   - Artikel ismin cinsiyetiyle uyuşuyor mu? (der/die/das)
-3. **Yanlışsa doğrusunu gösterir**, her hata için **"Neden?"** butonuyla açılan derinlemesine açıklama sunar: kural + neden böyle + (istenildiği gibi) **dilin kökenine dair açıklama**, hepsi Türkçe.
-4. **Kelime Bankası**: ~90 A1-B1 fiil, ~150 isim (cinsiyetiyle), ~90 sıfat, ~85 C1 seviyesi ileri fiil — hepsi Türkçe anlamıyla, sesli okuma (🔊) ve favorileme ile.
-5. **Günlük İfadeler**: "Echt?", "Ach du meine Güte!", "Na klar!" gibi günlük/naif konuşma kalıpları — her biri neden öyle kullanıldığına dair kısa bir köken/kullanım notuyla.
-6. **Kelime Ekle**: Kendi fiil/isim/sıfatlarını kelime bankasına ekleyebilirsin (Kelime Bankası ekranından ya da Cümle Kur ekranındaki "+ Ekle" ile). Eklediğin kelimeler cihazda saklanır, hem Kelime Bankası'nda hem Cümle Kur oyunlarında hemen kullanılabilir hale gelir ve gramer motoru onları da diğer kelimeler gibi denetler.
+- **Cümle kur.** Özne, fiil, artikel, isim, sıfat, soru kelimesi, bağlaç ve zaman/yer kelimelerinden dokunarak bir cümle oluştur. Kelimeyi seçip sola/sağa taşıyabilir, çıkarabilir, fiilin biçimini değiştirebilirsin.
+- **Kontrol et.** Motor cümleyi denetler; yanlışsa doğrusunu ve nedenini gösterir. Her hatanın altında "Neden böyle?" ile açılan Türkçe açıklama vardır: kural, mantığı, kökeni, örnek.
+- **Kelimeler.** Yaklaşık 100 fiil, 180 isim, 90 sıfat ve 90 C1 fiil; Türkçe anlamı, sesli okuma ve favorilerle. Kendi kelimeni ekleyebilirsin; eklediğin kelime cümle kurarken de kullanılır.
+- **İfadeler.** "Echt?", "Na klar!", "Ach du meine Güte!" gibi günlük kalıplar ve neden öyle söylendikleri.
+- **Ayarlar.** Gündüz, gece ya da sistem teması; Türkçe anlamları gizleme; ilerlemeyi sıfırlama.
 
-## Neden bu mimari?
+## Tasarım
 
-- Gramer motoru (`src/engine/`) ve kelime verisi (`src/data/`) **saf TypeScript**, hiçbir React Native bağımlılığı yok. Bu sayede:
-  - Simülatör/cihaz olmadan **Jest ile gerçek birim testleriyle** doğrulanabiliyor (`npm test` → 29 test, hepsi geçiyor).
-  - İleride web, CLI ya da başka bir arayüze taşınması kolay.
-- UI katmanı (`src/screens/`, `src/components/`) Expo + React Navigation ile yazıldı → **tek kod tabanından hem iOS hem Android**.
-- Motor, cümlenin "modunu" (basit/soru/Perfekt/Modal/yan cümle) kullanıcının seçtiği token dizisinden **otomatik olarak çıkarır** — yani "Serbest Pratik" ekranında her yapı türü serbestçe denenebilir.
+- **Tema.** Açık ve koyu palet `src/theme/index.ts` içinde. Seçim cihazda saklanır; "Sistem" seçeneği telefonun ya da bilgisayarın ayarını izler.
+- **Renk bilgi taşır.** İsimler ve artikeller cinsiyete göre aynı tonu paylaşır (der mavi, die pembe, das yeşil), böylece uyumlu artikel-isim çifti bir bakışta görünür. Fiiller mor, sıfatlar turkuaz. Tek "yüksek sesli" renk bayraktaki altın sarısıdır ve yalnızca ana eylemde kullanılır.
+- **Yazı.** Almanca metin Atkinson Hyperlegible ile yazılır (ß/B, l/I, ä/a gibi harfleri ayırt etmek için tasarlanmış bir yazı tipi). Türkçe arayüz metni cihazın kendi sistem yazı tipinde kalır; iki dil her yerde gözle ayrılır.
+- **Düzen.** Telefonda alt sekme çubuğu; geniş ekranda (masaüstü tarayıcı, yatay tablet) aynı sekmeler sol kenara geçer ve içerik okunabilir genişlikte bir sütunda kalır.
+- **Artikel tablosu.** Artikel bankası, gerçekte olduğu şey gibi çizilir: satırlar hâl, sütunlar cinsiyet.
 
-## Gramer motorunun kapsadığı kurallar
+## Gramer motoru
 
-| Kural | Dosya | Test |
-|---|---|---|
-| Özne-fiil uyumu | `engine/grammar.ts` → `checkAgreement` | ✅ |
-| Perfekt: haben/sein seçimi | `checkPerfektAux` | ✅ (senin örneğin) |
-| V2 kelime sırası (ana cümle) | `checkMainClauseOrder` | ✅ |
-| Satzklammer (Partizip/mastar cümle sonu) | `checkMainClauseOrder` / `checkSubordinateOrder` | ✅ |
-| W-Fragen sırası | `checkQuestionOrder` | ✅ |
-| weil/dass — fiil sona gider | `checkSubordinateOrder` | ✅ |
-| Modal fiil + mastar | `detectShape` (modal) | ✅ |
-| Akkusativ/Dativ nesne hâli | `checkCases` | ✅ |
-| Artikel-isim cinsiyet uyumu | `checkCases` | ✅ |
-| Sıfat konumu (predicative/attributive) | `checkAdjectives` | bilgi notu |
+`src/engine/` ve `src/data/` saf TypeScript'tir, arayüze bağlı değildir; bu yüzden cihaz olmadan birim testleriyle doğrulanır (`npm test`, 48 test).
 
-Her kural `src/engine/grammarNotes.ts` içinde Türkçe, "kural + neden + köken + örnek" formatında açıklanıyor.
+Motor önce cümleyi öğelere ayırır ("artikel + sıfat + isim" tek öğedir), cümle türünü ve özneyi bulur, sonra kuralları uygular:
 
-## Geliştirme
+| Kural | Örnek |
+|---|---|
+| Fiil özneye uyar (zamir ya da isim özne) | `Du kommst.` · `Der Mann kommt.` |
+| Perfekt'te haben / sein seçimi | `Ich habe gekommen` → `Ich bin gekommen.` |
+| Düz cümlede fiil 2. sırada (öne alınan öğeyle birlikte) | `Heute gehe ich nach Hause.` · `Den Mann sehe ich.` |
+| Partizip II / mastar cümle sonunda | `Ich kann heute tanzen.` |
+| Soru kelimeli soru ve Evet/Hayır sorusu | `Wo arbeitest du?` · `Wer kommt?` · `Kommst du?` |
+| weil / dass: fiil en sonda | `…, weil ich gekommen bin.` |
+| Özne Nominativ; nesne fiilin istediği hâlde | `Ich sehe den Mann.` · `Ich helfe dem Mann.` |
+| İki nesneli fiiller (Dativ kişi + Akkusativ şey) | `Ich zeige dem Mann das Bild.` |
+| sein'dan sonra Nominativ; tek yüklem | `Ich bin der Lehrer.` · `Der Weg ist lang.` |
+| Artikel ismin cinsiyetine uyar | `die Mann` → `der Mann` |
+| Artikel ile isim arasındaki sıfat ek alır (otomatik) | `den großen Mann` · `ein kleines Kind` |
+| Ayrılabilir fiilde ek cümle sonuna gider | `Ich stehe heute auf.` |
+
+Motor bir düzeltme önerdiğinde onu aynı kurallardan bir kez daha geçirir. Düzeltme hâlâ hatalıysa "doğrusu" diye gösterilmez; bunun yerine neyin çeliştiği açıklanır.
+
+Açıklama metinleri `src/engine/grammarNotes.ts` içindedir.
+
+## Çalıştırma
 
 ```bash
 cd german-sprech-app
 npm install
 
-npm test          # gramer motoru birim testleri (Jest)
-npm run typecheck # TypeScript kontrolü
+npm test            # gramer motoru testleri
+npm run typecheck   # TypeScript kontrolü
 
-npm start         # Expo geliştirme sunucusu (Expo Go uygulamasıyla QR kod tara)
-npm run ios       # iOS simülatöründe aç (macOS + Xcode gerekir)
-npm run android   # Android emülatöründe aç (Android Studio gerekir)
+npm start           # geliştirme sunucusu (telefonda Expo Go ile QR kodu tara)
+npm run web         # tarayıcıda aç
+npm run ios         # iOS simülatörü (macOS + Xcode gerekir)
+npm run android     # Android emülatörü (Android Studio gerekir)
 ```
 
-> Bu proje bir Linux konteynerinde, simülatörsüz geliştirildi. Kod, `npx expo export --platform ios` ve `--platform android` ile **gerçek Metro bundling'i** üzerinden doğrulandı (her ikisi de hatasız paketlendi) — ama gerçek bir cihaz/simülatörde görsel test yapılmadı. İlk çalıştırmada küçük stil/layout ince ayarları gerekebilir.
+Nasıl doğrulandı: iOS, Android ve web paketleri hatasız derleniyor. Web sürümü gerçek bir tarayıcıda telefon ve masaüstü boyutunda, açık ve koyu temada, uçtan uca denendi (cümle kurma, kontrol, kelime ekleme, tema değiştirme). iOS ve Android sürümleri gerçek cihazda ya da simülatörde henüz açılmadı; ilk açılışta küçük düzen ayarları gerekebilir.
 
-## iOS ve Android'de yayınlama (EAS Build)
+## Web'de yayınlama (Windows ve Mac kullanıcıları için)
 
-Bu uygulama Expo Application Services (EAS) ile derlenip App Store / Google Play'e gönderilebilir:
+```bash
+npm run build:web   # dist/ klasörünü üretir
+```
+
+`dist/` klasörü düz dosyalardan oluşur; herhangi bir statik barındırma hizmetine (Netlify, Vercel, Cloudflare Pages, GitHub Pages…) yüklenebilir. Site alan adının kökünde değil bir alt klasörde yayınlanacaksa (örn. `kullanici.github.io/proje/`), derlemeden önce `app.json` içinde `expo.experiments.baseUrl` değerini o yola ayarla.
+
+`public/manifest.json` sayesinde site Chrome ve Edge'de "Uygulamayı yükle", iPhone'da "Ana Ekrana Ekle" ile uygulama gibi kurulabilir. Çevrimdışı çalışma henüz yok; açmak için internet gerekir.
+
+## Mağazalarda yayınlama (iOS ve Android)
 
 ```bash
 npm install -g eas-cli
 eas login
 eas build:configure
 
-# Test/iç dağıtım için:
-eas build --platform ios --profile preview
-eas build --platform android --profile preview
-
-# Mağaza için:
 eas build --platform ios --profile production
 eas build --platform android --profile production
 
@@ -80,27 +86,29 @@ eas submit --platform ios
 eas submit --platform android
 ```
 
-Yayınlamadan önce gerekenler:
-- Apple Developer hesabı (yıllık $99) ve App Store Connect kaydı.
-- Google Play Console hesabı (tek seferlik $25).
-- `assets/icon.png` (1024×1024), `assets/adaptive-icon.png` ve splash görseli eklenip `app.json`'da tanımlanmalı (şu an varsayılan Expo ikonuyla geliyor).
-- `app.json` içindeki `ios.bundleIdentifier` ve `android.package` değerlerini kendi hesabına göre güncelle.
+Gerekenler: Apple Developer hesabı (yıllık 99 $), Google Play Console hesabı (tek seferlik 25 $), ve `app.json` içindeki `ios.bundleIdentifier` ile `android.package` değerlerinin kendi hesabına göre güncellenmesi. Uygulama simgesi ve açılış görseli `assets/` içinde hazırdır.
 
 ## Klasör yapısı
 
 ```
+assets/        uygulama simgesi, Android katmanı, açılış görseli, favicon
+public/        web sayfası şablonu, kurulum bildirimi, web simgeleri
 src/
-  data/       # kelime bankaları (verbs, nouns, adjectives, C1, expressions, articles...)
-  engine/     # saf TS gramer motoru: conjugate, tokens, grammar, grammarNotes
-    __tests__/  # Jest testleri
-  components/ # WordChip, SentenceStrip, FeedbackModal, VerbTokenEditor
-  screens/    # Home, Builder, WordList, Expressions
-  navigation/ # React Navigation stack
-  context/    # AsyncStorage tabanlı ilerleme/favori takibi
+  data/        kelime bankaları, artikeller, soru kelimeleri, ifadeler
+  engine/      gramer motoru: çekim, cümle çözümleme, kurallar, açıklamalar
+    __tests__/ birim testleri
+  theme/       açık/koyu palet, yazı tipleri, ölçüler
+  context/     ayarlar (tema), ilerleme, kullanıcının eklediği kelimeler
+  components/  simgeler, düğmeler, kelime çipi, cümle şeridi, artikel tablosu, sayfalar
+  screens/     ana kabuk ve sekmeler, cümle kurma, kelime ekleme
+  navigation/  ekranlar arası geçiş
 ```
 
-## Bilinen sınırlar (v1)
+## Bilinen sınırlar
 
-- Sıfat çekimi (der **große** Mann gibi ek alması) henüz derecelendirilmiyor, sadece bilgi notu veriyor — Almancanın en karmaşık konularından biri, sonraki versiyon için planlandı.
-- Nesne olarak sadece artikel+isim ikilisi destekleniyor (zamir nesneler — "ihn/sie/es" gibi — henüz yok).
-- Çoğul isim/artikel çekimi MVP'de yok, sadece tekil.
+- Yalnızca tekil isimler; çoğul çekim yok.
+- Nesne olarak zamir (ihn, ihr, mich…) yok; nesneler isimle kurulur.
+- Edatlar hazır kalıp olarak gelir (nach Hause, in der Schule); edat + isim serbestçe kurulamaz.
+- Artikelsiz isimden önceki sıfat çekilmez (`kaltes Wasser` yerine `kalt Wasser` kabul edilir).
+- Yalnızca şimdiki zaman ve Perfekt; Präteritum ve gelecek zaman yok.
+- Bir cümlede tek yan cümle ya da tek ana cümle; ikisi birlikte kurulamaz.

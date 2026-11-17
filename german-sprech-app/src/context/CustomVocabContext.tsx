@@ -59,6 +59,7 @@ export const CustomVocabProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setStored(parsed);
         setVersion((v) => v + 1);
       })
+      .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 

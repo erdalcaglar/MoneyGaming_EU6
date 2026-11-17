@@ -35,6 +35,8 @@ export interface VerbEntry {
   isModal?: boolean;
   /** true for reflexive verbs (sich nähern, sich beschweren...) */
   reflexive?: boolean;
+  /** may take a Dativ person AND an Akkusativ thing ("Ich zeige dem Mann das Bild") */
+  ditransitive?: boolean;
 }
 
 export interface NounEntry {

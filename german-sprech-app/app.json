@@ -2,11 +2,14 @@
   "expo": {
     "name": "Deutsch Sprechen",
     "slug": "deutsch-sprechen",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "2.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#101826"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E1218"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -17,13 +20,18 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#101826"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F5C400"
       },
       "package": "com.erdalcaglar.deutschsprechen"
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
     },
-    "plugins": []
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

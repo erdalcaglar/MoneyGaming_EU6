@@ -41,6 +41,7 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       .then((raw) => {
         if (raw) setState({ ...defaultState, ...JSON.parse(raw) });
       })
+      .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 
